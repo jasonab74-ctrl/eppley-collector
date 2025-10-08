@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eppley Data Status</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px;color:#111;background:#fff}
+    h1{margin:0 0 8px} .sub{color:#555;margin:0 0 20px}
+    table{border-collapse:collapse;width:100%;max-width:1000px}
+    th,td{border:1px solid #e6e6ef;padding:10px;text-align:left;font-size:14px}
+    th{background:#f7f7fb}
+    .small{color:#666;font-size:12px}
+    .ok{color:#0a7a20;font-weight:600} .na{color:#a00}
+    .btn{display:inline-block;padding:6px 10px;border:1px solid #111;border-radius:8px;text-decoration:none;color:#111}
+    .btn:hover{background:#111;color:#fff}
+    footer{margin-top:24px;color:#666;font-size:12px}
+  </style>
+</head>
+<body>
+  <h1>Eppley Data Status</h1>
+  <p class="sub">These files are rebuilt nightly and live in this repository’s <code>output/</code> folder.</p>
+
+  <div id="meta" class="small"></div>
+  <div id="table"></div>
+
+  <footer>Tip: right-click a CSV link → “Save link as…” to download directly.</footer>
+
+  <script>
+    async function main(){
+      const statusUrl = 'output/status.json?' + Date.now();
+      let data;
+      try {
+        const res = await fetch(statusUrl);
+        data = await res.json();
+      } catch {
+        document.getElementById('table').innerHTML = '<p>status.json not found yet. Check back after the nightly run finishes.</p>';
+        return;
+      }
+      document.getElementById('meta').textContent = `Generated: ${data.generated_at} (UTC) • Repo: ${data.repo}`;
+
+      const rows = data.files || [];
+      const fmt = n => n.toLocaleString('en-US');
+
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Description</th>
+              <th>Last Updated (UTC)</th>
+              <th>Size</th>
+              <th>Total Rows</th>
+              <th>New Rows (since last run)</th>
+              <th>Links</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td><code>${r.name}</code><div class="small">${r.exists ? '<span class="ok">available</span>' : '<span class="na">missing</span>'}</div></td>
+                <td>${r.label || ''}</td>
+                <td>${r.updated_at || ''}</td>
+                <td>${r.size_mb ? r.size_mb + ' MB' : '—'}</td>
+                <td>${r.rows ? fmt(r.rows) : '—'}</td>
+                <td>${r.new_rows_since_last_run ? '+'+fmt(r.new_rows_since_last_run) : '0'}</td>
+                <td>
+                  <a class="btn" href="${r.download_url}" target="_blank" rel="noopener">Download CSV</a>
+                  <a class="btn" href="${r.webpage_url}" target="_blank" rel="noopener">View on GitHub</a>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+      document.getElementById('table').innerHTML = html;
+    }
+    main();
+  </script>
+</body>
+</html>
