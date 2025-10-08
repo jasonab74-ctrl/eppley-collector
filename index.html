@@ -1,123 +1,27 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Eppley Knowledge Portal</title>
-  <link rel="stylesheet" href="static/css/styles.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lunr/lunr.min.js"></script>
-</head>
-<body>
-  <header>
-    <h1>Dr. Barry Eppley — Knowledge Portal</h1>
-    <p class="sub">Search Q&amp;A, Publications, and Videos collected in this repo’s <code>output/</code> folder.</p>
-  </header>
-
-  <main>
-    <section class="controls">
-      <input id="q" type="search" placeholder="Search by keywords (e.g., 'chin implant', 'forehead reduction')" />
-      <div class="tabs">
-        <button class="tab active" data-target="qa">Q&amp;A</button>
-        <button class="tab" data-target="pubs">Publications</button>
-        <button class="tab" data-target="vids">Videos</button>
-      </div>
-    </section>
-
-    <section id="qa" class="panel active">
-      <div id="qa-count" class="count"></div>
-      <div id="qa-list" class="cards"></div>
-    </section>
-
-    <section id="pubs" class="panel">
-      <div id="pubs-count" class="count"></div>
-      <div id="pubs-list" class="cards"></div>
-    </section>
-
-    <section id="vids" class="panel">
-      <div id="vids-count" class="count"></div>
-      <div id="vids-list" class="cards"></div>
-    </section>
-  </main>
-
-  <footer>
-    <span>Built for personal research. Data comes from CSVs in <code>output/</code>. Updated nightly by GitHub Actions.</span>
-  </footer>
-
-  <script>
-    const PATHS = {
-      qa: 'output/wordpress_posts.csv',
-      pubs: 'output/pubmed_eppley.csv',
-      vids: 'output/youtube_metadata.csv'
-    };
-    const state = { qa: [], pubs: [], vids: [], indexes: {} };
-    function csvToArray(obj){ return obj.data&&obj.data.length?obj.data:[]; }
-    function renderCards(type, rows){
-      const wrap=document.getElementById(type+'-list');
-      const count=document.getElementById(type+'-count');
-      wrap.innerHTML=''; count.textContent=rows.length+' result'+(rows.length===1?'':'s');
-      const frag=document.createDocumentFragment();
-      rows.slice(0,500).forEach(r=>{
-        const c=document.createElement('article'); c.className='card';
-        if(type==='qa'){
-          const title=r.title||'(no title)'; const url=r.url||'#'; const date=r.date||'';
-          const body=r.body? r.body.slice(0,300)+(r.body.length>300?'…':'') : '';
-          c.innerHTML=`<h3><a href="${url}" target="_blank" rel="noopener">${title}</a></h3>
-                       <div class="meta">${date}</div><p>${body}</p>`;
-        } else if(type==='pubs'){
-          const title=r.title||'(no title)'; const year=r.year||''; const journal=r.journal||'';
-          const doi=r.doi? `<a href="https://doi.org/${r.doi}" target="_blank" rel="noopener">${r.doi}</a>` : '';
-          c.innerHTML=`<h3>${title}</h3><div class="meta">${journal} ${year} ${doi}</div>
-                       <p>${(r.abstract||'').slice(0,300)}${(r.abstract||'').length>300?'…':''}</p>`;
-        } else {
-          const title=r.title||'(no title)';
-          const url=r.webpage_url||r.url||(r.videoId? 'https://www.youtube.com/watch?v='+r.videoId : '#');
-          c.innerHTML=`<h3><a href="${url}" target="_blank" rel="noopener">${title}</a></h3>`;
-        }
-        frag.appendChild(c);
-      });
-      wrap.appendChild(frag);
-    }
-    function buildIndex(type, rows){
-      if(!rows.length) return null;
-      const fields = type==='qa'? ['title','body','tags'] : (type==='pubs' ? ['title','abstract','journal','year','doi'] : ['title']);
-      const idx = lunr(function(){ this.ref('__id'); fields.forEach(f=>this.field(f)); rows.forEach((r,i)=>{ r.__id=type+'_'+i; this.add(r); }); });
-      state.indexes[type]=idx; return idx;
-    }
-    function doSearch(q){
-      ['qa','pubs','vids'].forEach(type=>{
-        const rows=state[type]; if(!q){ renderCards(type, rows); return; }
-        const idx=state.indexes[type]; if(!idx){ renderCards(type, rows); return; }
-        try{ const hits=idx.search(q); const byId=Object.fromEntries(rows.map(r=>[r.__id,r])); renderCards(type, hits.map(h=>byId[h.ref]).filter(Boolean)); }
-        catch(e){ renderCards(type, rows); }
-      });
-    }
-    async function loadCSV(path){
-      return new Promise((res, rej)=>{
-        Papa.parse(path, { header:true, download:true, skipEmptyLines:true, complete:r=>res(csvToArray(r)), error:rej });
-      });
-    }
-    async function init(){
-      const [qa,pubs,vids]=await Promise.all([
-        loadCSV(PATHS.qa).catch(_=>[]),
-        loadCSV(PATHS.pubs).catch(_=>[]),
-        loadCSV(PATHS.vids).catch(_=>[]),
-      ]);
-      state.qa=qa; state.pubs=pubs; state.vids=vids;
-      buildIndex('qa',qa); buildIndex('pubs',pubs); buildIndex('vids',vids);
-      renderCards('qa',qa); renderCards('pubs',pubs); renderCards('vids',vids);
-      document.getElementById('q').addEventListener('input', e=>doSearch(e.target.value.trim()));
-      document.querySelectorAll('.tab').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-          document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-          btn.classList.add('active'); document.getElementById(btn.dataset.target).classList.add('active');
-        });
-      });
-    }
-    init();
-  </script>
-</body>
-</html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Eppley Data Hub</title>
+<link rel="stylesheet" href="static/css/styles.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head><body>
+<header><h1>Eppley Data Hub</h1><p class="sub">Auto-updating archive of Dr. Barry Eppley’s public Q&amp;A, publications, and videos.</p></header>
+<main>
+  <div class="card">
+    <h3>Live Dataset Summary</h3>
+    <iframe src="status-badge.html" title="Status badge" style="width:100%;height:58px;border:0;"></iframe>
+    <p class="small">Data refreshes nightly. Direct CSV downloads below are permanent links hosted by GitHub.</p>
+  </div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card"><h3>Q&amp;A (Blog)</h3><p>Thousands of patient questions and detailed answers.</p>
+      <div class="row"><a class="btn" href="output/wordpress_posts.csv">Download CSV</a><a class="btn" href="portal.html">Search</a></div></div>
+    <div class="card"><h3>Publications (PubMed)</h3><p>Peer-reviewed papers with titles, abstracts, year, and journal.</p>
+      <div class="row"><a class="btn" href="output/pubmed_eppley.csv">Download CSV</a><a class="btn" href="portal.html">Search</a></div></div>
+    <div class="card"><h3>Videos (YouTube)</h3><p>Channel metadata with titles and links.</p>
+      <div class="row"><a class="btn" href="output/youtube_metadata.csv">Download CSV</a><a class="btn" href="portal.html">Search</a></div></div>
+    <div class="card"><h3>Data Status</h3><p>Row counts, last updated time, and file sizes.</p><a class="btn" href="status.html">Open Status Dashboard</a></div>
+  </div>
+</main>
+<footer>Built for personal research. CSVs live in <code>/output/</code> and update nightly.</footer>
+</body></html>

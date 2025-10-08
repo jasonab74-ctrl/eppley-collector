@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Eppley Knowledge Portal</title>
+<link rel="stylesheet" href="static/css/styles.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lunr/lunr.min.js"></script>
+</head><body>
+<header><h1>Dr. Barry Eppley — Knowledge Portal</h1><p class="sub">Search Q&amp;A, Publications, and Videos from CSVs in <code>output/</code>.</p></header>
+<main>
+  <div class="row"><input id="q" type="search" placeholder="Search (e.g., 'chin implant', 'forehead reduction')" />
+    <a class="btn" href="status.html">Status</a><a class="btn" href="index.html">Home</a></div>
+  <div class="tabs"><button class="tab active" data-target="qa">Q&amp;A</button><button class="tab" data-target="pubs">Publications</button><button class="tab" data-target="vids">Videos</button></div>
+  <section id="qa" class="panel active"><div id="qa-count" class="small"></div><div id="qa-list" class="cards"></div></section>
+  <section id="pubs" class="panel"><div id="pubs-count" class="small"></div><div id="pubs-list" class="cards"></div></section>
+  <section id="vids" class="panel"><div id="vids-count" class="small"></div><div id="vids-list" class="cards"></div></section>
+</main>
+<footer>Data updates nightly via GitHub Actions.</footer>
+<script>
+const PATHS={qa:'output/wordpress_posts.csv', pubs:'output/pubmed_eppley.csv', vids:'output/youtube_metadata.csv'};
+const state={qa:[],pubs:[],vids:[],indexes:{}}; const csvToArray=o=>o.data&&o.data.length?o.data:[];
+function render(type,rows){const w=document.getElementById(type+'-list'),c=document.getElementById(type+'-count');w.innerHTML='';c.textContent=(rows.length||0).toLocaleString()+' result(s)';
+const f=document.createDocumentFragment(); rows.slice(0,500).forEach(r=>{const el=document.createElement('article'); el.className='card';
+if(type==='qa'){const title=r.title||'(no title)',url=r.url||'#',date=r.date||'',body=r.body? r.body.slice(0,280)+(r.body.length>280?'…':'') : '';
+el.innerHTML=`<h3><a href="${url}" target="_blank" rel="noopener">${title}</a></h3><div class="meta">${date}</div><p>${body}</p>`;}
+else if(type==='pubs'){const title=r.title||'(no title)',year=r.year||'',journal=r.journal||'',doi=r.doi? `<a href="https://doi.org/${r.doi}" target="_blank" rel="noopener">${r.doi}</a>` : '';
+el.innerHTML=`<h3>${title}</h3><div class="meta">${journal} ${year} ${doi}</div><p>${(r.abstract||'').slice(0,280)}${(r.abstract||'').length>280?'…':''}</p>`;}
+else{const title=r.title||'(no title)'; const url=r.webpage_url||r.url||(r.videoId? 'https://www.youtube.com/watch?v='+r.videoId : '#'); el.innerHTML=`<h3><a href="${url}" target="_blank" rel="noopener">${title}</a></h3>`;}
+f.appendChild(el);}); w.appendChild(f);}
+function buildIndex(type,rows){ if(!rows.length) return null; const fields=type==='qa'?['title','body','tags']:(type==='pubs'?['title','abstract','journal','year','doi']:['title']); 
+const idx=lunr(function(){this.ref('__id'); fields.forEach(f=>this.field(f)); rows.forEach((r,i)=>{ r.__id=type+'_'+i; this.add(r); });}); state.indexes[type]=idx; return idx; }
+function search(q){['qa','pubs','vids'].forEach(type=>{const rows=state[type]; if(!q){render(type,rows); return;} const idx=state.indexes[type]; if(!idx){render(type,rows); return;}
+try{const hits=idx.search(q); const byId=Object.fromEntries(rows.map(r=>[r.__id,r])); render(type, hits.map(h=>byId[h.ref]).filter(Boolean));}catch(e){render(type,rows);} });}
+async function loadCSV(path){return new Promise((res,rej)=>{Papa.parse(path,{header:true,download:true,skipEmptyLines:true,complete:r=>res(csvToArray(r)),error:rej});});}
+async function init(){const [qa,pubs,vids]=await Promise.all([loadCSV(PATHS.qa).catch(_=>[]),loadCSV(PATHS.pubs).catch(_=>[]),loadCSV(PATHS.vids).catch(_=>[])]);
+state.qa=qa; state.pubs=pubs; state.vids=vids; buildIndex('qa',qa); buildIndex('pubs',pubs); buildIndex('vids',vids); render('qa',qa); render('pubs',pubs); render('vids',vids);
+document.getElementById('q').addEventListener('input', e=>search(e.target.value.trim())); document.querySelectorAll('.tab').forEach(b=>{b.addEventListener('click',()=>{
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+b.classList.add('active'); document.getElementById(b.dataset.target).classList.add('active');});});}
+init();
+</script></body></html>

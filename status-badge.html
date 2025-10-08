@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Eppley Data Badge</title>
+<link rel="stylesheet" href="static/css/styles.css"/>
+<style>body{margin:8px}.badgebox{display:inline-flex;gap:8px;align-items:center;border:1px solid #111;border-radius:999px;padding:8px 12px}.dot{width:10px;height:10px;border-radius:50%;background:#12a150}</style>
+</head><body>
+<div id="badge" class="badgebox"><span class="dot"></span><span>Loading…</span></div>
+<script>
+async function go(){
+  try{
+    const res=await fetch('output/status.json?'+Date.now()); const data=await res.json();
+    const f=(data.files||[]); const get=n=>f.find(x=>x.name===n)||{};
+    const qa=get('wordpress_posts.csv').rows||0; const pm=get('pubmed_eppley.csv').rows||0; const vd=get('youtube_metadata.csv').rows||0;
+    const when=data.generated_at ? new Date(data.generated_at).toISOString().slice(0,10) : '—';
+    document.querySelector('#badge').innerHTML=`<span class="dot"></span><span><strong>Q&As:</strong> ${qa.toLocaleString()} • <strong>PubMed:</strong> ${pm.toLocaleString()} • <strong>Videos:</strong> ${vd.toLocaleString()} (Updated ${when})</span>`;
+  }catch(e){ document.querySelector('#badge').innerHTML = '<span class="dot"></span><span>Status pending…</span>'; }
+}
+go();
+</script></body></html>
