@@ -55,3 +55,6 @@ Outputs will be written to `./output/` as both **CSV** and **JSONL**.
 - If YouTube handle URLs fail, replace with the channel’s `/channel/UC...` URL or enable the API path.
 - If the WordPress theme is unusual, tweak selectors in `wordpress_scraper.py` (`entry-content`, `entry-title`, etc.).
 - If PubMed returns 429/403, add your email and/or API key in `config.yaml` and re-run.
+
+- <iframe src="https://jasonab74-ctrl.github.io/eppley-collector/status-badge.html" width="100%" height="58" frameborder="0"></iframe>
+
