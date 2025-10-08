@@ -1,0 +1,104 @@
+name: Build Data Status
+
+on:
+  schedule:
+    - cron: "15 3 * * *"   # runs nightly, a few minutes after your scraper
+  workflow_dispatch: {}
+  workflow_run:
+    workflows: ["Run Eppley Scraper"]
+    types: [completed]
+
+jobs:
+  build-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate output/status.json
+        run: |
+          python - <<'PY'
+          import os, csv, json, time, hashlib
+          from datetime import datetime, timezone
+
+          files = [
+              ("wordpress_posts.csv", "All blog+Q&A posts"),
+              ("pubmed_eppley.csv",   "Publications (PubMed)"),
+              ("youtube_metadata.csv","YouTube metadata")
+          ]
+
+          def raw_url(path):
+              return f"https://raw.githubusercontent.com/${{ github.repository }}/main/{path}"
+
+          def blob_url(path):
+              return f"https://github.com/${{ github.repository }}/blob/main/{path}"
+
+          status_path = "output/status.json"
+          prev = {}
+          if os.path.exists(status_path):
+              try:
+                  with open(status_path, "r", encoding="utf-8") as f:
+                      prev = json.load(f)
+              except Exception:
+                  prev = {}
+
+          updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+          rows_out = []
+          for fname, label in files:
+              path = f"output/{fname}"
+              entry = {
+                  "name": fname,
+                  "label": label,
+                  "path": path,
+                  "exists": os.path.exists(path),
+                  "updated_at": updated_at,
+                  "size_bytes": 0,
+                  "size_mb": 0.0,
+                  "rows": 0,
+                  "new_rows_since_last_run": 0,
+                  "raw_url": raw_url(path),
+                  "webpage_url": blob_url(path),
+                  "download_url": raw_url(path)
+              }
+              if entry["exists"]:
+                  entry["size_bytes"] = os.path.getsize(path)
+                  entry["size_mb"] = round(entry["size_bytes"] / (1024*1024), 3)
+                  # count rows (excluding header if present)
+                  with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                      reader = csv.reader(f)
+                      rows = list(reader)
+                      if rows:
+                          # assume first row is header if it contains 'title' or 'pmid' etc.
+                          header = rows[0]
+                          data_rows = rows[1:] if any(h.strip().lower() in ("title","pmid","url","date","abstract","videoid") for h in header) else rows
+                          entry["rows"] = len(data_rows)
+                      else:
+                          entry["rows"] = 0
+                  # delta vs previous
+                  prev_map = { (r.get("name") or r.get("path")): r for r in prev.get("files", []) } if isinstance(prev, dict) else {}
+                  prior = prev_map.get(fname) or prev_map.get(path) or {}
+                  entry["new_rows_since_last_run"] = max(0, entry["rows"] - int(prior.get("rows", 0)))
+
+              rows_out.append(entry)
+
+          out = {
+              "repo": "${{ github.repository }}",
+              "generated_at": updated_at,
+              "files": rows_out
+          }
+
+          os.makedirs("output", exist_ok=True)
+          with open(status_path, "w", encoding="utf-8") as f:
+              json.dump(out, f, ensure_ascii=False, indent=2)
+
+          print(json.dumps(out, indent=2))
+          PY
+
+      - name: Commit status.json
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/status.json
+          git commit -m "Update data status" || echo "No changes to commit"
+          git push
