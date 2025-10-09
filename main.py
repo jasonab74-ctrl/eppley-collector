@@ -11,10 +11,7 @@ Sources supported (null-safe):
 - OpenAlex       → output/openalex_works.csv
 - ClinicalTrials → output/clinical_trials.csv
 - ORCID          → output/orcid_profiles.csv, output/orcid_works.csv
-- YouTube (shim) → calls youtube_collect.py if present, writes output/youtube_all.csv
-
-Also writes:
-- output/wp_state.json  (light discovery/progress hints)
+- YouTube (shim) → calls youtube_collect.py if present
 
 CLI:
   python main.py --only all
@@ -23,7 +20,7 @@ CLI:
 
 import argparse, csv, json, os, sys, time, math, pathlib, re
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List
 
 import requests
 
@@ -66,7 +63,6 @@ def load_config() -> Dict[str, Any]:
 def session():
     s = requests.Session()
     s.headers.update({"User-Agent": UA, "Accept": "application/json, */*;q=0.1"})
-    s.timeout = 30
     return s
 
 def write_csv(path: pathlib.Path, rows: List[Dict[str, Any]], fields: List[str]):
@@ -80,11 +76,6 @@ def write_csv(path: pathlib.Path, rows: List[Dict[str, Any]], fields: List[str])
 # -------------------------- WordPress --------------------------------
 
 def run_wp(base: str, mode: str = "auto", per_page: int = 100, save_every: int = 200, delay: float = 1.0, wp_max: int = 100000):
-    """
-    Fast path: WordPress REST API (if exposed)
-    Fallback: XML sitemap index → post sitemaps → fetch post pages (lightweight)
-    Writes output/wordpress_posts.csv with: id, date, link, title, content(plain), tags (slim)
-    """
     out_csv = OUTDIR / "wordpress_posts.csv"
     fields = ["id","date","link","title","content","tags","collected_at"]
     sess = session()
@@ -102,7 +93,7 @@ def run_wp(base: str, mode: str = "auto", per_page: int = 100, save_every: int =
         while True:
             url = f"{base.rstrip('/')}/wp-json/wp/v2/posts"
             params = {"per_page": per_page, "page": page, "_fields": "id,date,link,title,content,tags"}
-            r = sess.get(url, params=params)
+            r = sess.get(url, params=params, timeout=30)
             if r.status_code == 400 and "rest_post_invalid_page_number" in r.text:
                 break
             if r.status_code != 200:
@@ -119,24 +110,22 @@ def run_wp(base: str, mode: str = "auto", per_page: int = 100, save_every: int =
                     "tags": "|".join([str(t) for t in (it.get("tags") or [])]),
                     "collected_at": utc_now(),
                 })
-            if len(rows) >= wp_max:
-                break
+            if len(rows) >= wp_max: break
             page += 1
             time.sleep(delay)
         return rows
 
     def fetch_sitemap_light():
-        # best-effort; keep very light to avoid failures
         try:
             sm_index = f"{base.rstrip('/')}/sitemap.xml"
-            r = sess.get(sm_index, timeout=20)
+            r = sess.get(sm_index, timeout=30)
             if r.status_code != 200:
                 return []
             locs = re.findall(r"<loc>(.*?)</loc>", r.text, flags=re.I)
             postmaps = [u for u in locs if "post" in u or "blog" in u]
             rows = []
             for sm in postmaps:
-                rr = sess.get(sm, timeout=20)
+                rr = sess.get(sm, timeout=30)
                 if rr.status_code != 200: 
                     continue
                 for link, dt in re.findall(r"<loc>(.*?)</loc>.*?<lastmod>(.*?)</lastmod>", rr.text, flags=re.I|re.S):
@@ -149,8 +138,7 @@ def run_wp(base: str, mode: str = "auto", per_page: int = 100, save_every: int =
                         "tags": "",
                         "collected_at": utc_now(),
                     })
-                    if len(rows) >= wp_max:
-                        break
+                    if len(rows) >= wp_max: break
                 if len(rows) >= wp_max: break
                 time.sleep(delay)
             return rows
@@ -161,57 +149,51 @@ def run_wp(base: str, mode: str = "auto", per_page: int = 100, save_every: int =
     rows = fetch_rest() if use_rest else fetch_sitemap_light()
     write_csv(out_csv, rows, fields)
 
-    # light progress snapshot for the dashboard
-    state = {
-        "completed": len(rows),
-        "queue": [],
-        "mode": "rest" if use_rest else "sitemap",
-        "generated_at": utc_now(),
-    }
     with open(OUTDIR / "wp_state.json", "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+        json.dump({
+            "completed": len(rows),
+            "queue": [],
+            "mode": "rest" if use_rest else "sitemap",
+            "generated_at": utc_now(),
+        }, f, ensure_ascii=False, indent=2)
 
-    print(f"[wp] wrote {len(rows)} rows via {state['mode']} → {out_csv.name}")
+    print(f"[wp] wrote {len(rows)} rows via {'rest' if use_rest else 'sitemap'} → {out_csv.name}")
 
 # ---------------------------- PubMed ---------------------------------
 
 def run_pubmed(author_query: str):
-    """
-    Simple PubMed via E-utilities.
-    Writes output/pubmed_eppley.csv
-    """
     out = OUTDIR / "pubmed_eppley.csv"
     fields = ["pmid","title","year","journal","authors","doi","link","source","collected_at"]
     sess = session()
 
-    # esearch
     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     p = {"db":"pubmed","term":author_query,"retmax":5000,"retmode":"json"}
-    r = sess.get(url, params=p)
-    ids = g(r.json(), "esearchresult", "idlist", default=[])
+    r = sess.get(url, params=p, timeout=30)
+    ids = (r.json() or {}).get("esearchresult",{}).get("idlist",[])
     rows: List[Dict[str,Any]] = []
     if not ids:
         write_csv(out, rows, fields)
         print("[pubmed] wrote 0 rows")
         return
 
-    # esummary batches
     sum_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
     for i in range(0, len(ids), 200):
         chunk = ids[i:i+200]
-        rr = sess.get(sum_url, params={"db":"pubmed","id":",".join(chunk),"retmode":"json"})
+        rr = sess.get(sum_url, params={"db":"pubmed","id":",".join(chunk),"retmode":"json"}, timeout=30)
         js = rr.json() or {}
         result = js.get("result", {})
         for pmid in chunk:
             it = result.get(pmid) or {}
             auths = ", ".join([g(a,"name",default="") for a in it.get("authors") or [] if g(a,"name",default="")])
+            eloc = it.get("elocationid","") or ""
+            doi = eloc.replace("doi:","").strip() if "doi" in eloc.lower() else ""
             rows.append({
                 "pmid": pmid,
                 "title": it.get("title",""),
                 "year": it.get("pubdate","")[:4],
                 "journal": it.get("fulljournalname",""),
                 "authors": auths,
-                "doi": g(it, "elocationid", default="").replace("doi:","").strip() if "doi" in (it.get("elocationid","").lower()) else "",
+                "doi": doi,
                 "link": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
                 "source": "pubmed",
                 "collected_at": utc_now(),
@@ -231,16 +213,10 @@ def run_crossref(names: List[str]):
 
     for n in names:
         cursor = "*"
-        for _ in range(10):  # up to 10 cursor pages per name
-            params = {
-                "query.author": n,
-                "rows": 200,
-                "cursor": cursor,
-                "mailto": "none@example.com"
-            }
-            r = sess.get("https://api.crossref.org/works", params=params)
-            if r.status_code != 200:
-                break
+        for _ in range(10):
+            params = {"query.author": n, "rows": 200, "cursor": cursor, "mailto": "none@example.com"}
+            r = sess.get("https://api.crossref.org/works", params=params, timeout=45)
+            if r.status_code != 200: break
             js = r.json() or {}
             items = g(js, "message", "items", default=[])
             for it in items:
@@ -263,24 +239,17 @@ def run_crossref(names: List[str]):
             if not cursor: break
             time.sleep(0.2)
 
-    # de-dupe by DOI then title
     ded = {}
     for r in rows:
         k = r.get("doi") or r.get("title")
-        if k and k not in ded:
-            ded[k] = r
+        if k and k not in ded: ded[k] = r
     rows = list(ded.values())
-
     write_csv(out, rows, fields)
     print(f"[crossref] wrote {len(rows)} rows → {out.name}")
 
 # --------------------------- OpenAlex --------------------------------
 
 def run_openalex(names: List[str]):
-    """
-    Robust OpenAlex collector (null-safe nested access).
-    Writes: output/openalex_works.csv and openalex_works.jsonl
-    """
     CSV = OUTDIR / "openalex_works.csv"
     JSONL = OUTDIR / "openalex_works.jsonl"
     fields = ["title","year","journal","venue","authors","doi","pmid","url",
@@ -290,9 +259,8 @@ def run_openalex(names: List[str]):
     def get_json(params, retries=4, backoff=0.7):
         for i in range(retries):
             try:
-                r = sess.get("https://api.openalex.org/works", params=params)
-                if r.status_code == 200:
-                    return r.json()
+                r = sess.get("https://api.openalex.org/works", params=params, timeout=45)
+                if r.status_code == 200: return r.json()
                 if r.status_code in (429, 500, 502, 503, 504):
                     time.sleep(backoff*(i+1)); continue
                 return None
@@ -311,8 +279,7 @@ def run_openalex(names: List[str]):
                 "page": page
             }
             js = get_json(params)
-            if not js or not js.get("results"):
-                break
+            if not js or not js.get("results"): break
             for it in js["results"]:
                 ids = g(it, "ids", default={}) or {}
                 doi = (ids.get("doi") or "").replace("https://doi.org/","").strip()
@@ -320,10 +287,8 @@ def run_openalex(names: List[str]):
                 for a in g(it,"authorships",default=[]):
                     nm = g(a,"author","display_name",default="")
                     if nm: auths.append(nm)
-                journal = g(it,"host_venue","display_name",default="") or \
-                          g(it,"primary_location","source","display_name",default="")
-                url = g(it,"primary_location","source","url",default="") or \
-                      g(it,"primary_location","landing_page_url",default="")
+                journal = g(it,"host_venue","display_name",default="") or g(it,"primary_location","source","display_name",default="")
+                url = g(it,"primary_location","source","url",default="") or g(it,"primary_location","landing_page_url",default="")
                 rows.append({
                     "title": g(it,"title",default=""),
                     "year": g(it,"publication_year",default=""),
@@ -343,18 +308,15 @@ def run_openalex(names: List[str]):
             page += 1
             time.sleep(0.25)
 
-    # de-dupe by DOI then title
     ded = {}
     for r in rows:
         k = r.get("doi") or r.get("title")
-        if k and k not in ded:
-            ded[k] = r
+        if k and k not in ded: ded[k] = r
     rows = list(ded.values())
 
     write_csv(CSV, rows, fields)
     with open(JSONL, "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False)+"\n")
+        for r in rows: f.write(json.dumps(r, ensure_ascii=False)+"\n")
     print(f"[openalex] wrote {len(rows)} rows → {CSV.name}")
 
 # ----------------------- ClinicalTrials.gov --------------------------
@@ -371,18 +333,19 @@ def run_ct(terms: List[str]):
             "fields": ",".join(["NCTId","BriefTitle","OverallStatus","Condition","StudyType","StartDate","PrimaryCompletionDate","NCTId"]),
             "max_rnk": 1000
         }
-        r = sess.get("https://clinicaltrials.gov/api/query/study_fields", params=p)
-        js = g(r.json(), "StudyFieldsResponse", "StudyFields", default=[])
+        r = sess.get("https://clinicaltrials.gov/api/query/study_fields", params=p, timeout=45)
+        js = (r.json() or {}).get("StudyFieldsResponse",{}).get("StudyFields",[])
         for it in js:
+            nct = (it.get("NCTId") or [""])[0]
             rows.append({
-                "nct_id": g(it,"NCTId",0,default=""),
-                "title": g(it,"BriefTitle",0,default=""),
-                "status": g(it,"OverallStatus",0,default=""),
-                "conditions": "|".join(g(it,"Condition",default=[])),
-                "study_type": g(it,"StudyType",0,default=""),
-                "start_date": g(it,"StartDate",0,default=""),
-                "completion_date": g(it,"PrimaryCompletionDate",0,default=""),
-                "url": f"https://clinicaltrials.gov/study/{g(it,'NCTId',0,default='')}",
+                "nct_id": nct,
+                "title": (it.get("BriefTitle") or [""])[0],
+                "status": (it.get("OverallStatus") or [""])[0],
+                "conditions": "|".join(it.get("Condition") or []),
+                "study_type": (it.get("StudyType") or [""])[0],
+                "start_date": (it.get("StartDate") or [""])[0],
+                "completion_date": (it.get("PrimaryCompletionDate") or [""])[0],
+                "url": f"https://clinicaltrials.gov/study/{nct}" if nct else "",
                 "source": "clinicaltrials",
                 "collected_at": utc_now(),
             })
@@ -402,32 +365,33 @@ def run_orcid(names: List[str]):
     rows_p, rows_w = [], []
 
     for n in names:
-        # Public search (limited); best-effort
-        r = sess.get("https://pub.orcid.org/v3.0/expanded-search/", params={"q": n, "rows": 50},
-                     headers={"Accept":"application/json", "User-Agent": UA})
+        r = sess.get(
+            "https://pub.orcid.org/v3.0/expanded-search/",
+            params={"q": n, "rows": 50},
+            headers={"Accept":"application/json","User-Agent": UA},
+            timeout=45
+        )
         js = r.json() if r.status_code==200 else {}
         for it in js.get("expanded-result", []) or []:
             orcid = it.get("orcid-id","")
             url = f"https://orcid.org/{orcid}" if orcid else ""
             rows_p.append({
                 "orcid": orcid,
-                "name": it.get("given-names","") + " " + it.get("family-names",""),
+                "name": f'{it.get("given-names","")} {it.get("family-names","")}'.strip(),
                 "affiliation": g(it,"institution-name",0,default=""),
                 "country": g(it,"country",0,default=""),
                 "url": url,
                 "source":"orcid",
                 "collected_at": utc_now(),
             })
-            # works endpoint (best-effort; may be limited)
             if orcid:
-                rr = sess.get(f"https://pub.orcid.org/v3.0/{orcid}/works", headers={"Accept":"application/json"})
+                rr = sess.get(f"https://pub.orcid.org/v3.0/{orcid}/works", headers={"Accept":"application/json"}, timeout=45)
                 jj = rr.json() if rr.status_code==200 else {}
                 for wk in jj.get("group", []) or []:
                     title = g(wk,"work-summary",0,"title","title","value",default="")
                     typ   = g(wk,"work-summary",0,"type",default="")
                     yr    = g(wk,"work-summary",0,"publication-date","year","value",default="")
                     doi = ""
-                    # try external ids
                     ext = g(wk,"work-summary",0,"external-ids","external-id",default=[]) or []
                     for e in ext:
                         if g(e,"external-id-type",default="").lower()=="doi":
@@ -452,10 +416,6 @@ def run_orcid(names: List[str]):
 # ------------------------------ YouTube ------------------------------
 
 def run_youtube_shim():
-    """
-    If youtube_collect.py exists, call it; otherwise no-op.
-    (Your workflow already runs youtube_collect.py as a step, but this keeps --only yt functional.)
-    """
     script = ROOT / "youtube_collect.py"
     if not script.exists():
         print("[yt] youtube_collect.py not present; skipping")
