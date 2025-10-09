@@ -1,0 +1,114 @@
+name: Audit Data (Eppley Collector)
+
+on:
+  schedule:
+    - cron: "20 12 * * *"   # 05:20 AM America/Phoenix ≈ 12:20 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run audit
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv, json, os, sys, time, pathlib
+          from datetime import datetime, timezone
+          OUT = pathlib.Path("output"); OUT.mkdir(parents=True, exist_ok=True)
+
+          def utc():
+            return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+          # Files we expect and the minimum sensible row counts (0 means just existence check)
+          targets = [
+            ("wordpress_posts.csv",   1),
+            ("pubmed_eppley.csv",     1),
+            ("crossref_works.csv",    0),
+            ("openalex_works.csv",    0),
+            ("clinical_trials.csv",   0),
+            ("orcid_profiles.csv",    0),
+            ("orcid_works.csv",       0),
+            ("youtube_all.csv",       0),
+          ]
+
+          report = {
+            "generated_at": utc(),
+            "results": [],
+            "summary": {"ok": True, "missing": 0, "too_small": 0, "total": len(targets)}
+          }
+
+          def row_count(path):
+            try:
+              with open(path, "r", encoding="utf-8") as f:
+                return sum(1 for _ in f) - 1  # minus header
+            except Exception:
+              return -1
+
+          for name, min_rows in targets:
+            p = OUT / name
+            exists = p.exists()
+            rows = row_count(p) if exists else -1
+            ok = exists and (rows >= min_rows if min_rows > 0 else rows >= 0)
+            if not exists:
+              report["summary"]["missing"] += 1
+            elif min_rows > 0 and rows < min_rows:
+              report["summary"]["too_small"] += 1
+              ok = False
+
+            report["results"].append({
+              "file": name,
+              "exists": exists,
+              "rows": rows,
+              "min_expected": min_rows,
+              "ok": ok,
+            })
+
+          report["summary"]["ok"] = all(r["ok"] for r in report["results"])
+
+          # Write machine-readable audit
+          with open(OUT / "audit.json", "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+
+          # Update health.json so the site can show a badge
+          health = {
+            "last_status": "passing" if report["summary"]["ok"] else "failed",
+            "generated_at": report["generated_at"]
+          }
+          with open(OUT / "health.json", "w", encoding="utf-8") as f:
+            json.dump(health, f, ensure_ascii=False, indent=2)
+
+          # Human-readable summary for logs
+          print("\n=== AUDIT RESULTS ===")
+          for r in report["results"]:
+            print(f"{r['file']:<22} exists={r['exists']} rows={r['rows']} min={r['min_expected']} ok={r['ok']}")
+          print("Summary:", report["summary"])
+
+          # Exit code: fail if not OK
+          sys.exit(0 if report["summary"]["ok"] else 1)
+          PY
+
+      - name: Commit audit artifacts (always)
+        if: always()
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/audit.json output/health.json || true
+          git commit -m "audit: update artifacts $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
+          git push || true
+
+      - name: Upload audit.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-artifacts
+          path: output/audit.json
