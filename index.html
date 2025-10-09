@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root{
-      --fg:#111; --muted:#666; --line:#e6e6ef; --pill:#f7f7fb; --accent:#12a150;
+      --fg:#111; --muted:#666; --line:#e6e6ef; --pill:#f7f7fb; --accent:#12a150; --error:#b3261e; --error-bg:#fde7e6;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -29,20 +29,28 @@
       line-height:1.15;
       letter-spacing:-0.01em;
     }
-    .sub{
-      margin:0; color:var(--muted);
-      font-size:clamp(.9rem, .5vw + .8rem, 1rem);
-    }
-    main{
-      max-width:1100px; margin:18px auto; padding:0 clamp(12px, 2.4vw, 16px);
-    }
+    .sub{ margin:0; color:var(--muted); font-size:clamp(.9rem, .5vw + .8rem, 1rem); }
+    main{ max-width:1100px; margin:18px auto; padding:0 clamp(12px, 2.4vw, 16px); }
 
-    /* badges */
     .badges{display:flex; gap:10px; flex-wrap:wrap; margin:10px 0}
     .badges img{height:22px}
     @media (max-width:480px){ .badges img{height:20px} }
 
-    /* stat pills: auto-fit grid so they wrap nicely on mobile */
+    .health{
+      display:none; margin:10px 0; padding:10px 12px; border-radius:8px;
+      border:1px solid var(--error); background:var(--error-bg); color:var(--error);
+      font-size:14px;
+    }
+
+    .topbar{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0 10px;
+    }
+    .btn{
+      display:inline-block; padding:10px 12px; border:1px solid #111; border-radius:10px;
+      text-decoration:none; color:#111; white-space:nowrap;
+    }
+    .btn:hover{background:#111; color:#fff}
+
     .statbar{
       display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
       gap:10px; margin:8px 0 18px;
@@ -53,30 +61,21 @@
       display:flex; align-items:center; justify-content:center;
     }
 
-    /* progress meter */
     .meter{background:#f1f1f6; border:1px solid var(--line); border-radius:12px; overflow:hidden; height:clamp(12px, .8vw + 10px, 18px)}
     .bar{height:100%; background:var(--accent); width:0%}
     .small{color:var(--muted); font-size:clamp(12px, .4vw + 10px, 13.5px)}
 
-    /* table with horizontal scroll on small screens (keeps all columns) */
     .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:10px}
     table{border-collapse:collapse; width:100%; min-width:720px; background:#fff}
     th,td{border-bottom:1px solid var(--line); padding:10px; font-size:14px; text-align:left; vertical-align:top}
     th{background:var(--pill); position:sticky; top:0; z-index:1}
     code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .btn{
-      display:inline-block; padding:10px 12px; border:1px solid #111; border-radius:10px;
-      text-decoration:none; color:#111; margin-right:6px; white-space:nowrap;
-    }
-    .btn:hover{background:#111; color:#fff}
-
-    footer{margin:28px 0; padding:0 6px; color:#666; text-align:center; font-size:12px}
   </style>
 </head>
 <body>
   <header>
     <h1>Dr. Barry Eppley — Data Hub</h1>
-    <p class="sub">Live archive of blog Q&amp;As, PubMed papers, and YouTube metadata. Auto-updated every few hours.</p>
+    <p class="sub">Live archive of blog Q&amp;As, PubMed, Crossref, OpenAlex, ORCID, ClinicalTrials, Semantic Scholar &amp; YouTube. Auto-updated every few hours.</p>
   </header>
 
   <main>
@@ -84,6 +83,15 @@
     <div class="badges">
       <img alt="Scraper status" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/run-scraper.yml?branch=main&label=Scraper">
       <img alt="Status builder" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/build-status.yml?branch=main&label=Data%20Status">
+    </div>
+
+    <!-- health banner -->
+    <div id="health" class="health">Recent workflow failed. Data may be stale. Check GitHub Actions for details.</div>
+
+    <!-- top controls -->
+    <div class="topbar">
+      <a class="btn" href="https://github.com/jasonab74-ctrl/eppley-collector/releases/tag/nightly" target="_blank" rel="noopener">⬇︎ Download latest ZIP</a>
+      <a class="btn" href="output/manifest.json" target="_blank" rel="noopener">☑︎ Checksums (manifest.json)</a>
     </div>
 
     <!-- top stats -->
@@ -117,6 +125,16 @@
     function fmt(n){return (n||0).toLocaleString('en-US');}
     async function j(url){const r=await fetch(url+'?'+Date.now()); if(!r.ok) throw new Error(url+' → '+r.status); return r.json();}
 
+    async function loadHealth(){
+      try{
+        const h = await j('output/health.json');
+        if(h && h.last_status && h.last_status.toLowerCase() !== 'ok'){
+          const b = document.getElementById('health');
+          b.style.display = 'block';
+        }
+      }catch(e){}
+    }
+
     async function loadWP(){
       try{
         const s = await j('output/wp_state.json');
@@ -149,7 +167,6 @@
         document.getElementById('rows-total').textContent = 'Total rows: ' + fmt(rowsTotal);
         document.getElementById('files-ok').textContent = 'Files: ' + filesOk;
 
-        // build table HTML
         const html = `
           <table>
             <thead>
@@ -201,8 +218,8 @@
         `Next scheduled run in ≈ ${h} h ${String(m).padStart(2,'0')} m (3 / 5 / 7 AM UTC schedule)`;
     }
 
-    loadWP(); loadStatus(); nextRunCountdown();
-    setInterval(nextRunCountdown, 60000); // update every minute
+    loadHealth(); loadWP(); loadStatus(); nextRunCountdown();
+    setInterval(nextRunCountdown, 60000);
   </script>
 </body>
 </html>
