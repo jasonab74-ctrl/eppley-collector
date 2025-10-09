@@ -1,13 +1,13 @@
 {
   "repo": "jasonab74-ctrl/eppley-collector",
-  "generated_at": "2025-10-09T03:27:13+00:00",
+  "generated_at": "2025-10-09T03:29:16+00:00",
   "files": [
     {
       "name": "wordpress_posts.csv",
       "label": "All blog+Q&A posts",
       "path": "output/wordpress_posts.csv",
       "exists": true,
-      "updated_at": "2025-10-09T03:27:13+00:00",
+      "updated_at": "2025-10-09T03:29:16+00:00",
       "size_bytes": 39,
       "size_mb": 0.0,
       "rows": 0,
@@ -21,7 +21,7 @@
       "label": "Publications (PubMed)",
       "path": "output/pubmed_eppley.csv",
       "exists": true,
-      "updated_at": "2025-10-09T03:27:13+00:00",
+      "updated_at": "2025-10-09T03:29:16+00:00",
       "size_bytes": 47986,
       "size_mb": 0.046,
       "rows": 186,
@@ -35,7 +35,7 @@
       "label": "YouTube metadata",
       "path": "output/youtube_metadata.csv",
       "exists": true,
-      "updated_at": "2025-10-09T03:27:13+00:00",
+      "updated_at": "2025-10-09T03:29:16+00:00",
       "size_bytes": 53,
       "size_mb": 0.0,
       "rows": 0,
