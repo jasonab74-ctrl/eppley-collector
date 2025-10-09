@@ -1,0 +1,48 @@
+{
+  "repo": "jasonab74-ctrl/eppley-collector",
+  "generated_at": "2025-10-09T02:47:21+00:00",
+  "files": [
+    {
+      "name": "wordpress_posts.csv",
+      "label": "All blog+Q&A posts",
+      "path": "output/wordpress_posts.csv",
+      "exists": false,
+      "updated_at": "2025-10-09T02:47:21+00:00",
+      "size_bytes": 0,
+      "size_mb": 0.0,
+      "rows": 0,
+      "new_rows_since_last_run": 0,
+      "raw_url": "https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/wordpress_posts.csv",
+      "webpage_url": "https://github.com/jasonab74-ctrl/eppley-collector/blob/main/output/wordpress_posts.csv",
+      "download_url": "https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/wordpress_posts.csv"
+    },
+    {
+      "name": "pubmed_eppley.csv",
+      "label": "Publications (PubMed)",
+      "path": "output/pubmed_eppley.csv",
+      "exists": false,
+      "updated_at": "2025-10-09T02:47:21+00:00",
+      "size_bytes": 0,
+      "size_mb": 0.0,
+      "rows": 0,
+      "new_rows_since_last_run": 0,
+      "raw_url": "https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/pubmed_eppley.csv",
+      "webpage_url": "https://github.com/jasonab74-ctrl/eppley-collector/blob/main/output/pubmed_eppley.csv",
+      "download_url": "https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/pubmed_eppley.csv"
+    },
+    {
+      "name": "youtube_metadata.csv",
+      "label": "YouTube metadata",
+      "path": "output/youtube_metadata.csv",
+      "exists": false,
+      "updated_at": "2025-10-09T02:47:21+00:00",
+      "size_bytes": 0,
+      "size_mb": 0.0,
+      "rows": 0,
+      "new_rows_since_last_run": 0,
+      "raw_url": "https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/youtube_metadata.csv",
+      "webpage_url": "https://github.com/jasonab74-ctrl/eppley-collector/blob/main/output/youtube_metadata.csv",
+      "download_url": "https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/youtube_metadata.csv"
+    }
+  ]
+}
