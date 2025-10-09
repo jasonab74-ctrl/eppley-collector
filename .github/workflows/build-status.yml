@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build-status:
@@ -120,6 +121,20 @@ jobs:
           git add output/status.json output/health.json output/manifest.json
           git commit -m "Update data status & health & manifest" || echo "No changes"
           git push
+
+      - name: Create issue on failure
+        if: failure()
+        uses: dacbd/create-issue-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "🔴 Status build failed — ${{ github.workflow }} @ run ${{ github.run_id }}"
+          body: |
+            **Workflow:** ${{ github.workflow }}
+            **Run:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Branch:** ${{ github.ref }}
+
+            The status/manifest job encountered an error. Please review the run logs.
+            (This issue was auto-created by the workflow.)
 
       - name: Mark health failed (if any step failed)
         if: failure()
