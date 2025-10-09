@@ -1,15 +1,16 @@
-name: Run Eppley Scraper
+name: Run Eppley Scraper (PR)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 3,5,7 * * *"   # keep whatever schedule you prefer
+    - cron: "0 3,5,7 * * *"
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
-  group: eppley-scraper-main
+  group: eppley-scraper-pr
   cancel-in-progress: true
 
 jobs:
@@ -18,11 +19,22 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Checkout (full history)
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create/update working branch
+        run: |
+          set -euo pipefail
+          git fetch origin
+          if git show-ref --verify --quiet refs/heads/bot/scrape; then
+            git checkout bot/scrape
+            git rebase origin/main || true
+          else
+            git checkout -b bot/scrape origin/main
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,63 +47,44 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run scraper
-        id: scrape
         env:
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
         run: |
           set -euo pipefail
           python main.py --only all
-          echo "SCRAPE_DONE=1" >> $GITHUB_OUTPUT
 
-      - name: Configure git author
-        run: |
-          git config --global user.name  "GitHub Actions"
-          git config --global user.email "actions@users.noreply.github.com"
-          git config --global pull.rebase true
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Stage changes (skip if no changes)
-        id: stage
+      - name: Commit changes (skip if none)
+        id: commit
         run: |
           set -euo pipefail
+          git config user.name  "GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
             echo "NO_CHANGES=true" >> $GITHUB_OUTPUT
-            echo "No file changes. Nothing to commit."
+            echo "No changes to commit."
           else
             echo "NO_CHANGES=false" >> $GITHUB_OUTPUT
-            git commit -m "Auto-update scraped data $(date -u +'%a %b %d %H:%M:%S UTC %Y')"
+            git commit -m "Scraper output $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
           fi
 
-      - name: Pull/rebase main to avoid non-fast-forward
-        if: steps.stage.outputs.NO_CHANGES == 'false'
+      - name: Push branch
+        if: steps.commit.outputs.NO_CHANGES == 'false'
         run: |
           set -euo pipefail
-          # Try to integrate remote changes before pushing
-          git fetch origin main
-          # If there are remote updates, rebase onto them
-          if ! git diff --quiet HEAD..origin/main; then
-            echo "Remote main has new commits. Rebasing…"
-            git pull --rebase origin main
-          else
-            echo "Remote main is unchanged since checkout."
-          fi
+          git push -u origin bot/scrape
 
-      - name: Push with retries
-        if: steps.stage.outputs.NO_CHANGES == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Retry up to 5 times in case another run races us
-          for i in 1 2 3 4 5; do
-            if git push origin HEAD:main; then
-              echo "Push succeeded on attempt $i"
-              exit 0
-            fi
-            echo "Push failed (attempt $i). Pull/rebase and retry after backoff…"
-            git pull --rebase origin main || true
-            sleep $(( i * 5 ))
-          done
-          echo "ERROR: failed to push after retries." >&2
-          exit 1
+      - name: Create or update PR
+        if: steps.commit.outputs.NO_CHANGES == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/scrape
+          base: main
+          title: "Scraper: update data files"
+          commit-message: "Scraper: update data files"
+          body: |
+            Automated scraper update. Review diffs, then merge.
+          labels: data, automated
+          draft: false
+          delete-branch: false
