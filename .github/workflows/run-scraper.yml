@@ -37,16 +37,24 @@ jobs:
           set -e
           python main.py --only all
 
-      - name: Commit results (safe rebase)
+      - name: Commit and push results (with safe rebase)
         run: |
           set -e
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@users.noreply.github.com"
+          
+          # make sure we're on main
+          git checkout main || true
           git pull --rebase --autostash origin main || true
-          git add -A output
+
+          git add -A output || true
           if git diff --cached --quiet; then
-            echo "No changes to commit."
+            echo "No new data to commit."
           else
-            git commit -m "[auto] Update scraped data $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            git push origin HEAD:main
+            git commit -m "[auto] Update scraped data $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || true
+            git pull --rebase --autostash origin main || true
+            git push origin HEAD:main --force-with-lease
           fi
+
+      - name: Job done
+        run: echo "✅ Scraper run finished successfully."
