@@ -3,30 +3,28 @@ name: Run Eppley Scraper
 on:
   workflow_dispatch:
   schedule:
-    # adjust as you like
-    - cron: "0 3,5,7 * * *"   # 03:00, 05:00, 07:00 UTC
+    - cron: "0 3,5,7 * * *"   # keep whatever schedule you prefer
 
 permissions:
-  contents: write   # required to push back to the repo
-  actions: read
+  contents: write
 
 concurrency:
-  group: run-eppley-scraper
-  cancel-in-progress: false    # allow a later run to queue; we’ll rebase before push
+  group: eppley-scraper-main
+  cancel-in-progress: true
 
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 120
 
     steps:
-      - name: Checkout
+      - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0           # we need history for rebase
-          persist-credentials: true
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -37,67 +35,63 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run scraper
+        id: scrape
         env:
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           python main.py --only all
-          # Ensure output directory exists even if some collectors produced nothing
-          mkdir -p output
-          ls -la output || true
+          echo "SCRAPE_DONE=1" >> $GITHUB_OUTPUT
 
-      # --------- NEW: safe pull+rebase before pushing results ----------
-      - name: Prepare git identity
+      - name: Configure git author
         run: |
           git config --global user.name  "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          git config --global user.email "actions@users.noreply.github.com"
+          git config --global pull.rebase true
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config --global core.autocrlf input
 
-      - name: Stage changes (if any)
+      - name: Stage changes (skip if no changes)
         id: stage
         run: |
-          set -euxo pipefail
-          # Add only the files we expect to change
-          git add -A output || true
+          set -euo pipefail
+          git add -A
           if git diff --cached --quiet; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "NO_CHANGES=true" >> $GITHUB_OUTPUT
+            echo "No file changes. Nothing to commit."
+          else
+            echo "NO_CHANGES=false" >> $GITHUB_OUTPUT
+            git commit -m "Auto-update scraped data $(date -u +'%a %b %d %H:%M:%S UTC %Y')"
           fi
-          echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Commit results (if changed)
-        if: steps.stage.outputs.changed == 'true'
+      - name: Pull/rebase main to avoid non-fast-forward
+        if: steps.stage.outputs.NO_CHANGES == 'false'
         run: |
-          set -euxo pipefail
-          ts="$(date -u +"%a %b %d %H:%M:%S UTC %Y")"
-          git commit -m "Auto-update scraped data ${ts}"
-
-      - name: Rebase onto latest main (if changed)
-        if: steps.stage.outputs.changed == 'true'
-        run: |
-          set -euxo pipefail
-          # Make sure we’re on main and up-to-date before pushing
-          git branch --show-current
+          set -euo pipefail
+          # Try to integrate remote changes before pushing
           git fetch origin main
-          # Auto-stash any uncommitted files (should be none after commit) and rebase
-          git -c rebase.autoStash=true pull --rebase origin main
+          # If there are remote updates, rebase onto them
+          if ! git diff --quiet HEAD..origin/main; then
+            echo "Remote main has new commits. Rebasing…"
+            git pull --rebase origin main
+          else
+            echo "Remote main is unchanged since checkout."
+          fi
 
-      - name: Push with retry (if changed)
-        if: steps.stage.outputs.changed == 'true'
+      - name: Push with retries
+        if: steps.stage.outputs.NO_CHANGES == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euxo pipefail
-          for attempt in 1 2 3; do
+          set -euo pipefail
+          # Retry up to 5 times in case another run races us
+          for i in 1 2 3 4 5; do
             if git push origin HEAD:main; then
-              echo "Push succeeded on attempt ${attempt}."
+              echo "Push succeeded on attempt $i"
               exit 0
             fi
-            echo "Push failed (attempt ${attempt}); rebasing and retrying..."
-            git fetch origin main
-            git -c rebase.autoStash=true pull --rebase origin main
-            sleep $((attempt * 3))
+            echo "Push failed (attempt $i). Pull/rebase and retry after backoff…"
+            git pull --rebase origin main || true
+            sleep $(( i * 5 ))
           done
-          echo "Push failed after retries."
+          echo "ERROR: failed to push after retries." >&2
           exit 1
