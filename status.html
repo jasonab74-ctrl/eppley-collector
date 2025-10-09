@@ -1,126 +1,173 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Eppley Data Status</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    :root{--fg:#111;--muted:#666;--line:#e6e6ef;--pill:#f7f7fb}
-    *{box-sizing:border-box} body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;color:var(--fg)}
-    header{padding:22px 18px;border-bottom:1px solid var(--line)} h1{margin:0 0 6px} .sub{margin:0;color:var(--muted)}
-    main{max-width:1100px;margin:22px auto;padding:0 16px}
-    table{border-collapse:collapse;width:100%} th,td{border:1px solid var(--line);padding:10px;text-align:left;font-size:14px} th{background:var(--pill)}
-    .btn{display:inline-block;padding:8px 10px;border:1px solid #111;border-radius:10px;text-decoration:none;color:#111;margin-right:6px}
-    .btn:hover{background:#111;color:#fff} .small{color:var(--muted);font-size:12px}
-    .meter{background:#f1f1f6;border:1px solid var(--line);border-radius:10px;overflow:hidden;height:16px}
-    .bar{height:100%;background:#12a150;width:0%}
-    .badges{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
-    footer{margin:32px 0;padding:16px;color:#666;text-align:center;font-size:12px}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dr. Barry Eppley — Data Hub</title>
+<style>
+  :root{
+    --ok:#16a34a; --bad:#dc2626; --muted:#6b7280; --bg:#0b0b0c; --fg:#e5e7eb; --card:#111418;
+    --accent:#22c55e; --chip:#1f2937; --chipfg:#d1d5db;
+  }
+  html,body{background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;}
+  .wrap{max-width:960px;margin:0 auto;padding:24px;}
+  h1{font-size:clamp(26px,5vw,40px);margin:0 0 8px;}
+  .sub{color:#b6bcc6;margin:0 0 20px}
+  .chips{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 18px}
+  .chip{background:var(--chip);color:var(--chipfg);padding:6px 10px;border-radius:999px;font-size:14px}
+  .chip.ok{background:rgba(34,197,94,.15);color:#a7f3d0;border:1px solid var(--accent)}
+  .chip.bad{background:rgba(220,38,38,.15);color:#fecaca;border:1px solid var(--bad)}
+  .panel{background:var(--card);border:1px solid #1e232b;border-radius:12px;padding:14px 16px;margin:12px 0}
+  .grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:720px){.grid{grid-template-columns:1fr 1fr}}
+  .hstack{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .kpi{display:flex;gap:10px}
+  .kpi .box{background:#0f1216;border:1px solid #1e232b;padding:10px 12px;border-radius:10px}
+  .kpi .val{font-size:20px;font-weight:700}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid #1e232b;text-align:left}
+  th{color:#9aa3af;font-weight:600}
+  .oktxt{color:var(--ok);font-weight:600}
+  .badtxt{color:var(--bad);font-weight:600}
+  a{color:#93c5fd;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .foot{color:#9aa3af;font-size:14px;margin:18px 0}
+</style>
 </head>
 <body>
-  <header>
-    <h1>Eppley Data Status</h1>
-    <p class="sub">Auto-updated from this repo’s <code>output/</code> folder. Live workflow status and crawl progress below.</p>
-  </header>
+<div class="wrap">
+  <h1>Dr. Barry Eppley — Data Hub</h1>
+  <p class="sub">Live archive of blog Q&amp;As, PubMed papers, OpenAlex/Crossref, ClinicalTrials, ORCID, and YouTube metadata. Auto-updated by GitHub Actions.</p>
 
-  <main>
-    <!-- LIVE workflow badges (no auth needed) -->
-    <div class="badges">
-      <img alt="Scraper status" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/run-scraper.yml?branch=main&label=Scraper">
-      <img alt="Status builder" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/build-status.yml?branch=main&label=Build%20Status">
+  <div class="chips" id="chips">
+    <span class="chip" id="chip-scraper">Scraper</span>
+    <span class="chip" id="chip-data">Data Status</span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="hstack">
+        <div class="kpi">
+          <div class="box">
+            <div style="color:#9aa3af;font-size:13px">Last updated</div>
+            <div class="val" id="last-updated">—</div>
+          </div>
+          <div class="box">
+            <div style="color:#9aa3af;font-size:13px">Files</div>
+            <div class="val" id="files-count">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">Generated from <code>output/</code> artifacts (<code>health.json</code> &amp; <code>audit.json</code>).</div>
     </div>
 
-    <!-- WordPress crawl meter -->
-    <section style="margin:14px 0 22px">
-      <div class="small" id="wp-head">WordPress crawl progress</div>
-      <div class="meter"><div class="bar" id="wp-bar"></div></div>
-      <div class="small" id="wp-foot" style="margin-top:6px;"></div>
-    </section>
+    <div class="panel">
+      <div style="color:#9aa3af;font-size:13px;margin-bottom:6px">WordPress crawl progress</div>
+      <div style="height:14px;background:#0f1216;border:1px solid #1e232b;border-radius:999px;overflow:hidden">
+        <div id="wpbar" style="height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#16a34a)"></div>
+      </div>
+      <div class="foot"><span id="wptext">—</span></div>
+    </div>
+  </div>
 
-    <div id="meta" class="small"></div>
-    <div id="table"></div>
-  </main>
+  <div class="panel">
+    <table id="files">
+      <thead>
+        <tr><th>File</th><th>Description</th><th>Rows</th><th>Status</th><th>Download</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-  <footer>Tip: right-click a CSV link → “Save link as…” to download directly.</footer>
+  <div class="foot">Tip: long-press a CSV link → “Save link as…” to download. Repo: <a href="https://github.com/{{USER}}/{{REPO}}">github.com/{{USER}}/{{REPO}}</a></div>
+</div>
 
-  <script>
-    const REPO = "jasonab74-ctrl/eppley-collector";
+<script>
+(async () => {
+  // Adjust these if your Pages path differs
+  const base = location.pathname.replace(/\/[^\/]*$/, "");
+  const healthUrl = base + "/output/health.json";
+  const auditUrl  = base + "/output/audit.json";
 
-    async function fetchJSON(url){
-      const r = await fetch(url + "?" + Date.now());
-      if(!r.ok) throw new Error(url + " → " + r.status);
-      return r.json();
-    }
+  const chipScraper = document.getElementById('chip-scraper');
+  const chipData    = document.getElementById('chip-data');
+  const lastUpdated = document.getElementById('last-updated');
+  const filesCount  = document.getElementById('files-count');
+  const wpbar       = document.getElementById('wpbar');
+  const wptext      = document.getElementById('wptext');
+  const tbody       = document.querySelector('#files tbody');
 
-    function fmt(n){ return (n||0).toLocaleString('en-US'); }
+  function setChip(el, ok) {
+    el.classList.remove('ok','bad');
+    el.classList.add('chip', ok ? 'ok' : 'bad');
+    el.textContent = (el.id === 'chip-scraper' ? 'Scraper' : 'Data Status') + ' ' + (ok ? 'passing' : 'failing');
+  }
 
-    async function loadWPState(){
-      try{
-        const st = await fetchJSON('output/wp_state.json');
-        const completed = st.completed || 0;
-        const remaining = (st.queue && st.queue.length) || 0;
-        const total = completed + remaining;
-        const pct = total ? Math.round((completed/total)*100) : (completed ? 100 : 0);
-        document.getElementById('wp-bar').style.width = pct + '%';
-        document.getElementById('wp-head').textContent = "WordPress crawl progress";
-        document.getElementById('wp-foot').textContent =
-          total ? `Completed: ${fmt(completed)} • Remaining (queued): ${fmt(remaining)} • Approx. ${pct}% done` :
-                  `No queue yet — first discovery or delta run pending`;
-      }catch(e){
-        document.getElementById('wp-head').textContent = "WordPress crawl progress";
-        document.getElementById('wp-foot').textContent = "No state yet (wp_state.json will appear after the first crawl chunk).";
-      }
-    }
+  function row(file, desc, rows, ok, href) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:ui-monospace,Menlo,Consolas,monospace">${file}</td>
+      <td>${desc}</td>
+      <td>${rows >= 0 ? rows : '—'}</td>
+      <td>${ok ? '<span class="oktxt">ok</span>' : '<span class="badtxt">missing/empty</span>'}</td>
+      <td>${href ? `<a href="${href}">CSV</a>` : '—'}</td>`;
+    tbody.appendChild(tr);
+  }
 
-    async function loadStatus(){
-      try{
-        const data = await fetchJSON('output/status.json');
-        document.getElementById('meta').textContent =
-          `Generated: ${data.generated_at} (UTC) • Repo: ${data.repo}`;
+  function rawUrl(name){
+    // works on GitHub Pages: serve from same site path
+    return base + "/output/" + name;
+  }
 
-        const rows = data.files || [];
-        const html = `
-          <table>
-            <thead>
-              <tr>
-                <th>File</th>
-                <th>Description</th>
-                <th>Last Updated (UTC)</th>
-                <th>Size</th>
-                <th>Total Rows</th>
-                <th>New Rows (since last run)</th>
-                <th>Links</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map(r => `
-                <tr>
-                  <td><code>${r.name}</code><div class="small">${r.exists ? '✅ available' : '❌ missing'}</div></td>
-                  <td>${r.label || ''}</td>
-                  <td>${r.updated_at || ''}</td>
-                  <td>${r.size_mb ? r.size_mb + ' MB' : '—'}</td>
-                  <td>${r.rows ? fmt(r.rows) : '—'}</td>
-                  <td>${r.new_rows_since_last_run ? '+'+fmt(r.new_rows_since_last_run) : '0'}</td>
-                  <td>
-                    <a class="btn" href="${r.download_url}" target="_blank" rel="noopener">Download CSV</a>
-                    <a class="btn" href="${r.webpage_url}" target="_blank" rel="noopener">View on GitHub</a>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>`;
-        document.getElementById('table').innerHTML = html;
-      }catch(e){
-        document.getElementById('table').innerHTML =
-          '<p>status.json not found yet. Run “Build Data Status” after the scraper commits, then refresh.</p>';
-      }
-    }
+  // Default progress text
+  function setWP(rows) {
+    const pct = Math.min(100, Math.round((rows>0?100:0)));
+    wpbar.style.width = pct + "%";
+    wptext.textContent = `Posts discovered: ${rows}`;
+  }
 
-    loadWPState();
-    loadStatus();
-  </script>
+  let health = null, audit = null;
+  try { health = await (await fetch(healthUrl, {cache: 'no-store'})).json(); } catch {}
+  try { audit  = await (await fetch(auditUrl,  {cache: 'no-store'})).json(); } catch {}
+
+  // Badges
+  const okHealth = !!health && health.last_status === 'passing';
+  const okAudit  = !!audit && (!!audit.summary ? !!audit.summary.ok : true);
+  setChip(chipScraper, okHealth);
+  setChip(chipData, okAudit);
+
+  lastUpdated.textContent = (health && health.generated_at) || (audit && audit.generated_at) || '—';
+
+  // Files table (from audit.json if available; otherwise conservative defaults)
+  const descMap = {
+    "wordpress_posts.csv": "All blog + Q&A posts",
+    "pubmed_eppley.csv": "Publications (PubMed)",
+    "crossref_works.csv": "Crossref works",
+    "openalex_works.csv": "OpenAlex works",
+    "clinical_trials.csv": "ClinicalTrials.gov results",
+    "orcid_profiles.csv": "ORCID profiles",
+    "orcid_works.csv": "ORCID works",
+    "youtube_all.csv": "YouTube metadata"
+  };
+
+  let rowsTotal = 0, filesSeen = 0;
+  if (audit && audit.results) {
+    audit.results.forEach(r => {
+      filesSeen++;
+      rowsTotal += Math.max(0, r.rows || 0);
+      row(r.file, descMap[r.file] || '', r.rows, !!r.ok, rawUrl(r.file));
+      if (r.file === "wordpress_posts.csv") setWP(r.rows);
+    });
+    filesCount.textContent = `${filesSeen}/${audit.summary.total}`;
+  } else {
+    // Fallback listing that won’t break the page
+    Object.keys(descMap).forEach(name => {
+      row(name, descMap[name], -1, false, rawUrl(name));
+    });
+    filesCount.textContent = `0/8`;
+    setWP(0);
+  }
+})();
+</script>
 </body>
 </html>
