@@ -1,199 +1,268 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Dr. Barry Eppley – Open Data Hub</title>
-<meta name="color-scheme" content="dark light" />
-<style>
-  :root{
-    --bg:#0b0d10; --card:#11151b; --fg:#e6edf3; --muted:#9aa7b2; --line:#1c232b;
-    --accent:#22c55e; --danger:#ef4444; --link:#93c5fd;
-  }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#ffffff; --card:#f7f7f8; --fg:#0e141b; --muted:#586271; --line:#e4e7eb; --link:#0b6ef9; }
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif}
-  a{color:var(--link);text-decoration:none}
-  a:hover{text-decoration:underline}
-  .wrap{max-width:980px;margin:0 auto;padding:22px}
-  header{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-  h1{font-size:clamp(24px,5vw,40px);margin:0}
-  .sub{color:var(--muted);margin:6px 0 0}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-  .chip{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:13px}
-  .ok{border-color:rgba(34,197,94,.4);color:#a7f3d0;background:rgba(34,197,94,.10)}
-  .bad{border-color:rgba(239,68,68,.4);color:#fecaca;background:rgba(239,68,68,.08)}
-  .grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:16px}
-  @media(min-width:760px){.grid{grid-template-columns:1.1fr .9fr}}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-  .kpis{display:flex;gap:10px;flex-wrap:wrap}
-  .kbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:140px;background:transparent}
-  .kcap{color:var(--muted);font-size:12px}
-  .kval{font-weight:800;font-size:20px}
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-  th{color:var(--muted);font-weight:600}
-  .oktxt{color:#16a34a;font-weight:700}
-  .badtxt{color:#dc2626;font-weight:700}
-  footer{color:var(--muted);margin:18px 0 6px}
-  code{background:rgba(125,125,125,.14);padding:2px 6px;border-radius:6px}
-  .note{color:var(--muted);font-size:13px;margin-top:8px}
-  .btns{display:flex;gap:10px;flex-wrap:wrap}
-  .btn{display:inline-block;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card)}
-  .btn:focus{outline:2px solid var(--line)}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dr. Barry Eppley — Open Data Hub</title>
+  <meta name="color-scheme" content="light dark">
+  <link rel="preconnect" href="https://jasonab74-ctrl.github.io">
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #141820;
+      --text: #e8eef5;
+      --muted: #9fb1c4;
+      --ok: #2ecc71;
+      --empty: #f1c40f;
+      --miss: #e74c3c;
+      --chip: #273244;
+      --chip-bd: #3a475c;
+      --a: #4da3ff;
+      --a-hover: #8bc0ff;
+      --table-bd: #2b3648;
+      --kbd-bg: #11161e;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:#f7fafc; --panel:#fff; --text:#151a22; --muted:#475569;
+        --chip:#eef2f7; --chip-bd:#d6dee8; --table-bd:#e6edf5; --kbd-bg:#eef2f7;
+      }
+    }
+    html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";}
+    a{color:var(--a);text-decoration:none}
+    a:hover{color:var(--a-hover);text-decoration:underline}
+    .wrap{max-width:1024px;margin:0 auto;padding:28px 16px 64px}
+    h1{font-size:28px;margin:0 0 4px}
+    .sub{color:var(--muted);margin:6px 0 18px}
+    .row{display:grid;gap:16px}
+    @media(min-width:860px){.row{grid-template-columns:1fr 1fr 1fr}}
+    .card{background:var(--panel);border:1px solid var(--table-bd);border-radius:14px;padding:16px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{border:1px solid var(--chip-bd);background:var(--chip);padding:4px 10px;border-radius:999px;font-size:12px;display:inline-flex;align-items:center;gap:8px}
+    .chip.ok{border-color:var(--ok);color:var(--ok)}
+    .chip.warn{border-color:var(--empty);color:var(--empty)}
+    .chip.bad{border-color:var(--miss);color:var(--miss)}
+    .kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .k{background:var(--panel);border:1px solid var(--table-bd);border-radius:12px;padding:14px}
+    .k .l{font-size:12px;color:var(--muted)}
+    .k .v{font-size:22px;font-weight:700;margin-top:6px}
+    table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--table-bd);border-radius:12px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--table-bd);vertical-align:top}
+    th{background:var(--panel);text-align:left;color:var(--muted);font-weight:600}
+    tr:last-child td{border-bottom:0}
+    .status{font-weight:700}
+    .s-ok{color:var(--ok)}
+    .s-empty{color:var(--empty)}
+    .s-missing{color:var(--miss)}
+    .right{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+    .muted{color:var(--muted)}
+    .danger{color:var(--miss)}
+    code,kbd{background:var(--kbd-bg);border:1px solid var(--table-bd);padding:2px 6px;border-radius:6px}
+    .footer{margin-top:24px;color:var(--muted)}
+  </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>Dr. Barry Eppley — Open Data Hub</h1>
-      <p class="sub">Live CSV archive (blog posts, papers, registries, ORCID/OpenAlex, YouTube). Updated whenever PRs merge into <code>main</code>.</p>
-      <div class="chips">
-        <span class="chip" id="chip-data">Data: —</span>
-        <span class="chip" id="chip-updated">Last updated: —</span>
-      </div>
-    </div>
-    <div class="btns">
-      <a class="btn" href="https://github.com/jasonab74-ctrl/eppley-collector" target="_blank" rel="noopener">View Repo</a>
-      <a class="btn" href="./status.html">Status</a>
-    </div>
-  </header>
+  <h1>Dr. Barry Eppley — Open Data Hub</h1>
+  <p class="sub">
+    Live CSV archive (blog posts, papers, registries, ORCID/OpenAlex, YouTube). Updated whenever PRs merge into
+    <code>main</code>.
+  </p>
 
-  <div class="grid">
-    <section class="card">
-      <h3 style="margin:6px 0 8px">Dataset at a glance</h3>
-      <div class="kpis">
-        <div class="kbox">
-          <div class="kcap">Files</div>
-          <div class="kval" id="k-files">—</div>
-        </div>
-        <div class="kbox">
-          <div class="kcap">Total rows</div>
-          <div class="kval" id="k-rows">—</div>
-        </div>
-        <div class="kbox">
-          <div class="kcap">WordPress posts</div>
-          <div class="kval" id="k-wp">—</div>
-        </div>
-        <div class="kbox">
-          <div class="kcap">Publications (Crossref)</div>
-          <div class="kval" id="k-cr">—</div>
-        </div>
-      </div>
-      <p class="note">Counts are computed client-side by fetching the CSV headers and lines from <code>/output/</code> on this site—no server needed.</p>
-    </section>
-
-    <section class="card">
-      <h3 style="margin:6px 0 8px">Quick links</h3>
-      <ul style="margin:0;padding-left:18px">
-        <li><a href="./output/wordpress_posts.csv">wordpress_posts.csv</a></li>
-        <li><a href="./output/pubmed_eppley.csv">pubmed_eppley.csv</a></li>
-        <li><a href="./output/crossref_works.csv">crossref_works.csv</a></li>
-        <li><a href="./output/openalex_works.csv">openalex_works.csv</a></li>
-        <li><a href="./output/clinical_trials.csv">clinical_trials.csv</a></li>
-        <li><a href="./output/orcid_profiles.csv">orcid_profiles.csv</a></li>
-        <li><a href="./output/orcid_works.csv">orcid_works.csv</a></li>
-        <li><a href="./output/youtube_all.csv">youtube_all.csv</a></li>
-      </ul>
-      <p class="note">Right-click → “Save link as…” to download a CSV. CSV links are stable.</p>
-    </section>
+  <div class="chips" id="topChips" aria-live="polite">
+    <span class="chip" id="dataReady">data: <strong>checking…</strong></span>
+    <span class="chip" id="updatedAt"></span>
+    <a class="chip" href="./" id="viewRepo">View Repo</a>
+    <a class="chip" href="./status.html">Status</a>
   </div>
 
-  <section class="card" style="margin-top:14px">
-    <h3 style="margin:6px 0 8px">File details</h3>
-    <table id="files">
-      <thead>
-      <tr><th>File</th><th>Description</th><th>Rows</th><th>Status</th><th>Download</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </section>
+  <div class="row" style="margin-top:16px">
+    <div class="card" style="grid-column:1/-1">
+      <div class="kpi" id="kpis" aria-live="polite">
+        <div class="k"><div class="l">Files</div><div class="v" id="k-files">–</div></div>
+        <div class="k"><div class="l">Total rows</div><div class="v" id="k-rows">–</div></div>
+        <div class="k"><div class="l">WordPress posts</div><div class="v" id="k-wp">–</div></div>
+      </div>
+      <div id="warnBanner" style="margin-top:12px;display:none">
+        <span class="chip warn">Heads up: one or more files are <strong>empty</strong>. Consider re-running collectors or widening queries.</span>
+      </div>
+    </div>
+  </div>
 
-  <footer>
-    Site URL: <a href="https://jasonab74-ctrl.github.io/eppley-collector/">https://jasonab74-ctrl.github.io/eppley-collector/</a>
-  </footer>
+  <div class="row" style="margin-top:12px">
+    <div class="card">
+      <h3 style="margin:0 0 8px">Quick links</h3>
+      <ul style="margin:0;padding-left:18px;line-height:1.6">
+        <li><a href="output/wordpress_posts.csv">wordpress_posts.csv</a></li>
+        <li><a href="output/pubmed_eppley.csv">pubmed_eppley.csv</a></li>
+        <li><a href="output/crossref_works.csv">crossref_works.csv</a></li>
+        <li><a href="output/openalex_works.csv">openalex_works.csv</a></li>
+        <li><a href="output/clinical_trials.csv">clinical_trials.csv</a></li>
+        <li><a href="output/orcid_profiles.csv">orcid_profiles.csv</a></li>
+        <li><a href="output/orcid_works.csv">orcid_works.csv</a></li>
+        <li><a href="output/youtube_all.csv">youtube_all.csv</a></li>
+      </ul>
+      <p class="muted" style="margin-top:10px">Right-click → “Save link as…” to download the CSV.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">File details</h3>
+    <div class="table-wrap">
+      <table id="filesTable">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Description</th>
+            <th>Rows</th>
+            <th>Status</th>
+            <th style="width:160px">Download</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="footer">
+      Site URL: <a href="https://jasonab74-ctrl.github.io/eppley-collector/">https://jasonab74-ctrl.github.io/eppley-collector/</a>
+    </div>
+  </div>
 </div>
 
 <script>
-(async () => {
-  // Files we expect
-  const files = [
-    ["wordpress_posts.csv","All blog/Q&A posts"],
-    ["pubmed_eppley.csv","PubMed summary"],
-    ["crossref_works.csv","Crossref works"],
-    ["openalex_works.csv","OpenAlex works"],
-    ["clinical_trials.csv","ClinicalTrials.gov"],
-    ["orcid_profiles.csv","ORCID profiles"],
-    ["orcid_works.csv","ORCID works"],
-    ["youtube_all.csv","YouTube metadata"]
+(() => {
+  // --- catalog of files on this site ---
+  const FILES = [
+    ["wordpress_posts.csv", "All blog/Q&amp;A posts"],
+    ["pubmed_eppley.csv", "PubMed summary"],
+    ["crossref_works.csv", "Crossref works"],
+    ["openalex_works.csv", "OpenAlex works"],
+    ["clinical_trials.csv", "ClinicalTrials.gov"],
+    ["orcid_profiles.csv", "ORCID profiles"],
+    ["orcid_works.csv", "ORCID works"],
+    ["youtube_all.csv", "YouTube metadata"],
   ];
 
-  const base = location.pathname.replace(/\/[^\/]*$/, "") + "/output/";
-  const tbody = document.querySelector("#files tbody");
-  const chipData = document.getElementById("chip-data");
-  const chipUpd  = document.getElementById("chip-updated");
-  const kFiles = document.getElementById("k-files");
-  const kRows  = document.getElementById("k-rows");
-  const kWP    = document.getElementById("k-wp");
-  const kCR    = document.getElementById("k-cr");
+  const qb = () => `?v=${Date.now()}`; // cache-bust
 
-  function row(name, desc, rows, ok) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td style="font-family:ui-monospace,Menlo,Consolas,monospace">${name}</td>
-      <td>${desc}</td>
-      <td>${rows >= 0 ? rows : "—"}</td>
-      <td>${ok ? '<span class="oktxt">ok</span>' : '<span class="badtxt">missing</span>'}</td>
-      <td><a href="./output/${name}">CSV</a></td>`;
-    tbody.appendChild(tr);
-  }
+  const $ = s => document.querySelector(s);
+  const tbody = $("#tbody");
+  const fmtBytes = b => {
+    if (b == null || isNaN(b)) return "—";
+    const units = ["B","KB","MB","GB"];
+    let i = 0, n = Number(b);
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
+  };
 
-  async function countRows(url) {
+  const state = {
+    totalRows: 0,
+    fileCount: 0,
+    wpRows: 0,
+    anyEmpty: false,
+    updatedAt: null,
+  };
+
+  async function probeFile(name, desc){
+    const url = `output/${name}`;
+    const headUrl = `${url}${qb()}`;
+
     try {
-      const r = await fetch(url, {cache:'no-store'});
-      if (!r.ok) return -1;
+      // HEAD first for size and last-modified
+      const h = await fetch(headUrl, { method:"HEAD", cache:"no-store" });
+      if(!h.ok) throw new Error(`HEAD ${h.status}`);
+      const size = h.headers.get("Content-Length");
+      const lm = h.headers.get("Last-Modified");
+      if (lm) {
+        const d = new Date(lm);
+        if (!state.updatedAt || d > state.updatedAt) state.updatedAt = d;
+      }
+
+      // GET and count lines (minus header if present)
+      const r = await fetch(headUrl, { method:"GET", cache:"no-store" });
+      if(!r.ok) throw new Error(`GET ${r.status}`);
       const text = await r.text();
-      if (!text) return 0;
-      // Count lines and subtract header (first line)
-      const lines = text.replace(/\r/g,'').split('\n').filter(Boolean);
-      return Math.max(0, lines.length - 1);
-    } catch { return -1; }
+      // normalize line endings and remove trailing blank
+      const lines = text.replace(/\r/g,"").split("\n").filter((l,i,a)=>!(i===a.length-1 && l.trim()===""));
+      let rows = 0;
+      if (lines.length === 0) {
+        rows = 0;
+      } else {
+        // If first line looks like a header (contains comma and non-numeric), count data lines = total-1
+        const headerLikely = lines[0].includes(","); // simple heuristic
+        rows = Math.max(0, lines.length - (headerLikely ? 1 : 0));
+      }
+
+      let status = "ok";
+      if (rows === 0) { status = "empty"; state.anyEmpty = true; }
+
+      // accumulate KPIs
+      state.totalRows += rows;
+      state.fileCount += 1;
+      if (name === "wordpress_posts.csv") state.wpRows = rows;
+
+      // render row
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><a href="${url}">${name}</a></td>
+        <td class="muted">${desc}</td>
+        <td>${rows.toLocaleString()}</td>
+        <td class="status ${status === "ok" ? "s-ok" : status === "empty" ? "s-empty" : "s-missing"}">${status}</td>
+        <td class="right">
+          <span class="muted" title="Content size">${fmtBytes(size)}</span>
+          <a href="${url}" download>CSV</a>
+        </td>`;
+      tbody.appendChild(tr);
+
+      return {name, rows, status, size: Number(size)||0};
+    } catch (err) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><a href="${url}">${name}</a></td>
+        <td class="muted">${desc}</td>
+        <td>—</td>
+        <td class="status s-missing">missing</td>
+        <td class="right"><span class="danger">fetch error</span> <a href="${url}">CSV</a></td>`;
+      tbody.appendChild(tr);
+      return {name, rows:0, status:"missing", size:0, error:String(err)};
+    }
   }
 
-  // Build table + KPIs
-  let totalRows = 0, present = 0, wpRows = 0, crRows = 0;
-  for (const [name, desc] of files) {
-    const rows = await countRows(base + name);
-    const ok = rows >= 0;
-    if (ok) present++;
-    if (rows > 0) totalRows += rows;
-    if (name === "wordpress_posts.csv") wpRows = Math.max(rows,0);
-    if (name === "crossref_works.csv")  crRows = Math.max(rows,0);
-    row(name, desc, rows, ok);
-  }
-  kFiles.textContent = `${present}/${files.length}`;
-  kRows.textContent  = totalRows.toLocaleString();
-  kWP.textContent    = wpRows.toLocaleString();
-  kCR.textContent    = crRows.toLocaleString();
+  (async function init(){
+    $("#viewRepo").href = "https://github.com/jasonab74-ctrl/eppley-collector";
+    $("#dataReady").innerHTML = 'data: <strong>checking…</strong>';
 
-  // Badges
-  const allOk = (present === files.length);
-  chipData.textContent = "Data: " + (allOk ? "ready" : "incomplete");
-  chipData.className = "chip " + (allOk ? "ok" : "bad");
+    const results = [];
+    for (const [name, desc] of FILES){
+      results.push(await probeFile(name, desc));
+    }
 
-  // Show last updated from Git metadata if available via Pages cache-buster
-  try {
-    // Lightweight heuristic: use the newest CSV’s Last-Modified header
-    const head = await fetch(base + "crossref_works.csv", {method:"HEAD", cache:"no-store"});
-    const lm = head.headers.get("last-modified");
-    chipUpd.textContent = "Last updated: " + (lm ? (new Date(lm)).toUTCString() : "—");
-    chipUpd.className = "chip";
-  } catch {
-    chipUpd.textContent = "Last updated: —";
-  }
+    // KPIs
+    $("#k-files").textContent = `${state.fileCount}/${FILES.length}`;
+    $("#k-rows").textContent = state.totalRows.toLocaleString();
+    $("#k-wp").textContent = state.wpRows.toLocaleString();
+
+    // top chips
+    const okFiles = results.filter(r => r.status === "ok").length;
+    const missing = results.filter(r => r.status === "missing").length;
+    const empty = results.filter(r => r.status === "empty").length;
+
+    const readyChip = $("#dataReady");
+    readyChip.classList.remove("ok","warn","bad");
+    if (missing > 0) { readyChip.classList.add("bad"); readyChip.innerHTML = `data: <strong>missing (${missing})</strong>`; }
+    else if (empty > 0) { readyChip.classList.add("warn"); readyChip.innerHTML = `data: <strong>ready (with ${empty} empty)</strong>`; }
+    else { readyChip.classList.add("ok"); readyChip.innerHTML = `data: <strong>ready</strong>`; }
+
+    if (state.updatedAt){
+      const s = state.updatedAt.toUTCString();
+      $("#updatedAt").textContent = `Last updated: ${s}`;
+      $("#updatedAt").classList.add("chip");
+    }
+
+    // banner
+    if (state.anyEmpty) {
+      $("#warnBanner").style.display = "block";
+    }
+  })();
 })();
 </script>
 </body>
