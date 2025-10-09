@@ -1,106 +1,71 @@
-name: Run Eppley Scraper (Resumable, Chunked, Safe)
+name: Run Eppley Scraper
 
 on:
-  schedule:
-    - cron: "0 3 * * *"
-    - cron: "0 5 * * *"
-    - cron: "0 7 * * *"
   workflow_dispatch:
+  # 3 / 5 / 7 AM UTC (as shown on your site)
+  schedule:
+    - cron: '0 3,5,7 * * *'
 
 permissions:
-  contents: write
-  issues: write
+  contents: write   # allow this job to push CSV updates
 
 concurrency:
   group: eppley-scraper
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-    timeout-minutes: 420
+    timeout-minutes: 90
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade --force-reinstall -r requirements.txt
+          pip install -r requirements.txt
 
-      # WordPress (resumable, chunked)
-      - name: WP chunk 1
-        run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
-      - name: Commit chunk 1
+      - name: Run scraper
+        env:
+          PYTHONUNBUFFERED: '1'
         run: |
+          python main.py
+
+      # ---- FIXED COMMIT STEP (rebase + retry) ----
+      - name: Commit results
+        run: |
+          set -e
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add output/
-          git commit -m "WP chunk 1 $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
-          git push
-      - name: WP chunk 2
-        run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
-      - name: Commit chunk 2
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add output/
-          git commit -m "WP chunk 2 $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
-          git push
 
-      # Other sources (isolated so one failure can’t kill everything)
-      - name: PubMed
-        run: python main.py --only pubmed
-      - name: Crossref
-        run: python main.py --only crossref
-      - name: OpenAlex
-        run: python main.py --only openalex
-      - name: ClinicalTrials.gov
-        run: python main.py --only ct
-      - name: ORCID
-        run: python main.py --only orcid
-      - name: YouTube (search + channels)
-        run: python youtube_collect.py || true
-      - name: Semantic Scholar
-        run: python s2_collect.py || true
+          # sync with the latest main to avoid "fetch first" rejections
+          git fetch origin main
+          git checkout main
+          git pull --rebase origin main
 
-      - name: Merge publications
-        run: python merge_publications.py
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Auto-update scraped data $(date -u '+%Y-%m-%d %H:%M:%S')"
 
-      - name: Final commit
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add output/
-          git commit -m "Auto-update scraped data $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
-          git push
-
-      - name: Mark health failed
-        if: failure()
-        run: |
-          mkdir -p output
-          echo '{"last_status":"failed","generated_at":"'"$(date -u +%FT%TZ)"'"}' > output/health.json
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add output/health.json
-          git commit -m "health: failed" || true
-          git push || true
-
-      - name: Create issue on failure
-        if: failure()
-        uses: dacbd/create-issue-action@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: "🔴 Scraper failed — ${{ github.workflow }} @ run ${{ github.run_id }}"
-          body: |
-            **Workflow:** ${{ github.workflow }}
-            **Run:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            **Branch:** ${{ github.ref }}
-
-      - name: Upload partial output on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: partial-output
-          path: output/**
+          # push; if rejected (race), rebase once more and push again
+          git push origin main || (git pull --rebase origin main && git push origin main)
