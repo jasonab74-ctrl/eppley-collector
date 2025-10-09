@@ -1,0 +1,93 @@
+name: Diagnostics (Eppley Collector)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Show env
+        run: |
+          python -V
+          pip -V
+          uname -a
+
+      - name: Install deps (diag)
+        run: |
+          python -m pip install --upgrade pip
+          # Minimal, safe superset of what we need
+          pip install requests pyyaml yt-dlp
+
+      - name: Import main and run collectors with try/except
+        shell: bash
+        run: |
+          set -e
+          mkdir -p output
+          python - <<'PY'
+          import traceback, sys, json, time
+          import main
+
+          def run(label, fn, *a, **kw):
+              print(f"\n=== START {label} ===", flush=True)
+              try:
+                  fn(*a, **kw)
+                  print(f"=== OK {label} ===", flush=True)
+                  return True
+              except Exception as e:
+                  print(f"=== FAIL {label}: {e} ===", flush=True)
+                  traceback.print_exc()
+                  return False
+
+          ok = []
+          # Use config defaults inside main.py
+          ok.append(run("wp", lambda: main.run_wp(
+              main.load_config().get("wordpress_base","https://exploreplasticsurgery.com"),
+              mode="auto", per_page=50, save_every=50, delay=0.5, wp_max=200)))
+          ok.append(run("pubmed", lambda: main.run_pubmed(
+              main.load_config().get("pubmed_author_query","Eppley BL[Author]"))))
+          ok.append(run("crossref", lambda: main.run_crossref(
+              main.load_config().get("names") or ["Barry L. Eppley","Barry Eppley","Eppley BL"])))
+          ok.append(run("openalex", lambda: main.run_openalex(
+              main.load_config().get("names") or ["Barry L. Eppley","Barry Eppley","Eppley BL"])))
+          ok.append(run("ct", lambda: main.run_ct(
+              main.load_config().get("clinicaltrials_terms") or ['"Barry Eppley"','Eppley Barry','Eppley'])))
+          ok.append(run("orcid", lambda: main.run_orcid(
+              main.load_config().get("names") or ["Barry L. Eppley","Barry Eppley","Eppley BL"])))
+
+          # Optional: YouTube shim (ignore failure)
+          try:
+              main.run_youtube_shim()
+              ok.append(True)
+          except Exception:
+              traceback.print_exc()
+              ok.append(False)
+
+          print("\nSUMMARY:", ok, flush=True)
+          PY
+
+      - name: Always commit whatever we produced (so the site updates)
+        if: always()
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/ || true
+          git commit -m "diagnostics: commit artifacts $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
+          git push || true
+
+      - name: Upload logs and output as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diag-output
+          path: |
+            output/**
