@@ -10,16 +10,38 @@ names:
 # ---- PubMed ----
 pubmed_author_query: "Eppley BL[Author]"
 
-# ---- YouTube channels (metadata only; add/remove as needed) ----
+# ---- YouTube: channels & playlists you know belong to him (optional) ----
 youtube_channel_urls:
-  - "https://www.youtube.com/@EppleyPlasticSurgery"    # example; replace/keep
-  - "https://www.youtube.com/@barryeppley"             # example; replace/keep
+  - "https://www.youtube.com/@EppleyPlasticSurgery"
+  - "https://www.youtube.com/@barryeppley"
+# youtube_playlist_urls:
+#   - "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx"
+
+# ---- YouTube: discovery search terms (no API keys) ----
+youtube_search_terms:
+  - "Barry Eppley"
+  - "\"Dr. Barry Eppley\""
+  - "Eppley Plastic Surgery"
+  - "exploreplasticsurgery"
+  - "barryeppley"
+
+# max results per term for relevance/date search (50..400 safe)
+youtube_search_per_term: 200
+
+# keep a broad match set for filtering
+youtube_match_variants:
+  - "Barry Eppley"
+  - "Dr. Barry Eppley"
+  - "Eppley Plastic Surgery"
+  - "exploreplasticsurgery"
+  - "barryeppley"
+  - "eppley"
 
 # ---- OpenAlex (optional direct author IDs if you have them) ----
 # openalex_author_ids:
-#   - "A1969203143"   # example id; leave commented if unknown
+#   - "A1969203143"
 
-# ---- ClinicalTrials.gov terms (broad to catch variants) ----
+# ---- ClinicalTrials.gov terms ----
 clinicaltrials_terms:
   - "\"Barry Eppley\""
   - "Eppley Barry"
