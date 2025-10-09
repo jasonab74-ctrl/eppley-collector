@@ -1,9 +1,4 @@
 requests
 beautifulsoup4
-lxml
-python-dateutil
-tqdm
-pandas
-yt-dlp
-pyrate-limiter
 PyYAML
+yt-dlp
