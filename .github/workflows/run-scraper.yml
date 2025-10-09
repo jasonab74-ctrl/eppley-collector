@@ -26,7 +26,7 @@ jobs:
         env: { PIP_DISABLE_PIP_VERSION_CHECK: "1" }
         run: pip install -r requirements.txt
 
-      # WordPress chunks
+      # WordPress in two chunks (resumable)
       - name: WP chunk 1
         run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
       - name: Commit chunk 1
@@ -47,17 +47,20 @@ jobs:
           git commit -m "WP chunk 2 $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
 
-      # APIs
+      # API sources
       - run: python main.py --only pubmed
       - run: python main.py --only crossref
       - run: python main.py --only openalex
       - run: python main.py --only ct
       - run: python main.py --only orcid
       - run: python main.py --only yt
+      - name: Semantic Scholar
+        run: python s2_collect.py
 
       # Merge & final commit
       - name: Merge publications
         run: python merge_publications.py
+
       - name: Final commit
         run: |
           git config --global user.name "GitHub Actions"
@@ -65,6 +68,18 @@ jobs:
           git add output/
           git commit -m "Auto-update scraped data $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
+
+      # If anything failed above, mark health as failed and still upload artifacts
+      - name: Mark health failed
+        if: failure()
+        run: |
+          mkdir -p output
+          echo '{"last_status":"failed","generated_at":"'"$(date -u +%FT%TZ)"'"}' > output/health.json
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/health.json
+          git commit -m "health: failed" || true
+          git push || true
 
       - name: Upload partial output on failure
         if: failure()
