@@ -1,11 +1,26 @@
-# Base site for WordPress mode (REST/sitemap/HTML)
+# ---- WordPress ----
 wordpress_base: "https://exploreplasticsurgery.com"
 
-# PubMed author query (kept broad on purpose)
+# ---- Identity / name variants (used by multiple sources) ----
+names:
+  - "Barry L. Eppley"
+  - "Barry Eppley"
+  - "Eppley BL"
+
+# ---- PubMed ----
 pubmed_author_query: "Eppley BL[Author]"
 
-# YouTube channel URLs for metadata (flat playlist via yt-dlp)
-# Replace with the channels you want to include. Examples below:
+# ---- YouTube channels (metadata only; add/remove as needed) ----
 youtube_channel_urls:
-  - "https://www.youtube.com/@EppleyPlasticSurgery"   # example
-  - "https://www.youtube.com/@barryeppley"            # example
+  - "https://www.youtube.com/@EppleyPlasticSurgery"    # example; replace/keep
+  - "https://www.youtube.com/@barryeppley"             # example; replace/keep
+
+# ---- OpenAlex (optional direct author IDs if you have them) ----
+# openalex_author_ids:
+#   - "A1969203143"   # example id; leave commented if unknown
+
+# ---- ClinicalTrials.gov terms (broad to catch variants) ----
+clinicaltrials_terms:
+  - "\"Barry Eppley\""
+  - "Eppley Barry"
+  - "Eppley"
