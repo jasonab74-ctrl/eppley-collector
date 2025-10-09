@@ -1,46 +1,112 @@
 <!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Data Status</title>
-<style>
-  body{font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:0;background:#0b0d10;color:#e6edf3}
-  .wrap{max-width:880px;margin:0 auto;padding:20px}
-  h1{margin:0 0 10px}
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:10px;border-bottom:1px solid #1c232b;text-align:left}
-  th{color:#9aa7b2}
-  a{color:#93c5fd;text-decoration:none}
-  a:hover{text-decoration:underline}
-  .ok{color:#16a34a;font-weight:700}
-  .bad{color:#dc2626;font-weight:700}
-</style>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dataset Status — Eppley Collector</title>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    :root {
+      --bg:#0b0d10; --panel:#141820; --text:#e8eef5; --muted:#9fb1c4;
+      --ok:#2ecc71; --empty:#f1c40f; --miss:#e74c3c; --table-bd:#2b3648;
+      --chip:#273244; --chip-bd:#3a475c; --a:#4da3ff; --a-hover:#8bc0ff;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg:#f7fafc; --panel:#fff; --text:#151a22; --muted:#475569; --table-bd:#e6edf5; --chip:#eef2f7; --chip-bd:#d6dee8; }
+    }
+    html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica Neue,Arial}
+    .wrap{max-width:900px;margin:0 auto;padding:28px 16px 64px}
+    h1{font-size:26px;margin:0 0 6px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{border:1px solid var(--chip-bd);background:var(--chip);padding:4px 10px;border-radius:999px;font-size:12px}
+    .ok{color:var(--ok);border-color:var(--ok)}
+    .warn{color:var(--empty);border-color:var(--empty)}
+    .bad{color:var(--miss);border-color:var(--miss)}
+    table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--table-bd);border-radius:12px;overflow:hidden;margin-top:14px}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--table-bd)}
+    th{text-align:left;color:var(--muted)}
+    tr:last-child td{border-bottom:0}
+    a{color:var(--a)} a:hover{color:var(--a-hover)}
+  </style>
+</head>
+<body>
 <div class="wrap">
-  <h1>Data Status</h1>
-  <p id="when" style="color:#9aa7b2">Last updated: —</p>
+  <h1>Dataset Status</h1>
+  <div class="chips" id="chips" aria-live="polite">
+    <span class="chip">checking…</span>
+  </div>
+
   <table id="t">
-    <thead><tr><th>File</th><th>Rows</th><th>Status</th><th>Link</th></tr></thead>
-    <tbody></tbody>
+    <thead>
+      <tr><th>File</th><th>Rows</th><th>Status</th></tr>
+    </thead>
+    <tbody id="tb"></tbody>
   </table>
+
+  <p style="margin-top:14px">
+    Back to <a href="./">main page</a>
+  </p>
 </div>
+
 <script>
-(async()=>{
-  const files = ["wordpress_posts.csv","pubmed_eppley.csv","crossref_works.csv","openalex_works.csv","clinical_trials.csv","orcid_profiles.csv","orcid_works.csv","youtube_all.csv"];
-  const base = location.pathname.replace(/\/[^\/]*$/, "") + "/output/";
-  const tb = document.querySelector("#t tbody");
-  async function count(u){ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok){return -1} const t=await r.text(); const n=t.replace(/\r/g,'').split('\n').filter(Boolean).length-1; return Math.max(0,n);}catch{return -1} }
-  let newest=0;
-  for(const f of files){
-    const rows = await count(base+f);
-    const ok   = rows >= 0;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${f}</td><td>${rows>=0?rows:"—"}</td><td class="${ok?"ok":"bad"}">${ok?"ok":"missing"}</td><td><a href="./output/${f}">CSV</a></td>`;
-    tb.appendChild(tr);
+(() => {
+  const FILES = [
+    "wordpress_posts.csv",
+    "pubmed_eppley.csv",
+    "crossref_works.csv",
+    "openalex_works.csv",
+    "clinical_trials.csv",
+    "orcid_profiles.csv",
+    "orcid_works.csv",
+    "youtube_all.csv",
+  ];
+  const qb = () => `?v=${Date.now()}`;
+  const tb = document.querySelector("#tb");
+  const chips = document.querySelector("#chips");
+
+  function addChip(text, cls){ const s=document.createElement("span"); s.className=`chip ${cls||""}`; s.textContent=text; chips.appendChild(s); }
+
+  async function probe(name){
+    const url = `output/${name}${qb()}`;
     try{
-      const h = await fetch(base+f,{method:"HEAD",cache:"no-store"});
-      const lm = h.headers.get("last-modified");
-      if(lm) newest = Math.max(newest, +new Date(lm));
-    }catch{}
+      const h = await fetch(url,{method:"HEAD",cache:"no-store"});
+      if(!h.ok) throw new Error(`HEAD ${h.status}`);
+      const r = await fetch(url,{cache:"no-store"});
+      if(!r.ok) throw new Error(`GET ${r.status}`);
+      const txt = await r.text();
+      const lines = txt.replace(/\r/g,"").split("\n").filter((l,i,a)=>!(i===a.length-1 && l.trim()===""));
+      const headerLikely = lines[0]?.includes(",") ?? false;
+      const rows = Math.max(0, lines.length - (headerLikely ? 1 : 0));
+      const status = rows>0 ? "ok" : "empty";
+      const tr=document.createElement("tr");
+      tr.innerHTML = `<td><a href="output/${name}">${name}</a></td>
+                      <td>${rows.toLocaleString()}</td>
+                      <td class="${status==='ok'?'ok':'warn'}"><strong>${status}</strong></td>`;
+      tb.appendChild(tr);
+      return {name, rows, status};
+    }catch(e){
+      const tr=document.createElement("tr");
+      tr.innerHTML = `<td><a href="output/${name}">${name}</a></td>
+                      <td>—</td>
+                      <td class="bad"><strong>missing</strong></td>`;
+      tb.appendChild(tr);
+      return {name, rows:0, status:"missing"};
+    }
   }
-  document.getElementById("when").textContent = "Last updated: " + (newest? new Date(newest).toUTCString() : "—");
+
+  (async function(){
+    chips.innerHTML = "";
+    const results = [];
+    for (const f of FILES) results.push(await probe(f));
+    const ok = results.filter(r=>r.status==='ok').length;
+    const empty = results.filter(r=>r.status==='empty').length;
+    const miss = results.filter(r=>r.status==='missing').length;
+
+    if (miss>0) addChip(`missing ${miss}`, "bad");
+    if (empty>0) addChip(`empty ${empty}`, "warn");
+    addChip(`ok ${ok}`, "ok");
+  })();
 })();
 </script>
+</body>
+</html>
