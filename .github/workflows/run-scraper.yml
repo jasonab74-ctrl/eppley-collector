@@ -7,6 +7,9 @@ on:
     - cron: "0 7 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: eppley-scraper
   cancel-in-progress: true
@@ -29,7 +32,6 @@ jobs:
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: pip install -r requirements.txt
 
-      # --- small WP chunks, resume via output/wp_state.json ---
       - name: WP chunk 1
         env: { PYTHONUNBUFFERED: "1" }
         run: python main.py --only wp --wp-max 600 --save-every 150 --delay 3.5
