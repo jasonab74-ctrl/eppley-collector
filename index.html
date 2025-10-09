@@ -30,38 +30,35 @@
 <body>
   <header>
     <h1>Dr. Barry Eppley — Data Hub</h1>
-    <p class="sub">Live archive of blog Q&amp;As, PubMed papers, and YouTube metadata. Auto-updated.</p>
+    <p class="sub">Live archive of blog Q&amp;As, PubMed papers, and YouTube metadata. Auto-updated every few hours.</p>
   </header>
 
   <main>
-    <!-- live workflow badges -->
     <div class="badges">
       <img alt="Scraper status" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/run-scraper.yml?branch=main&label=Scraper">
       <img alt="Status builder" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/build-status.yml?branch=main&label=Data%20Status">
     </div>
 
-    <!-- top stats -->
     <div class="statbar" id="top-stats">
       <span class="pill" id="last-run">Last updated: —</span>
       <span class="pill" id="rows-total">Total rows: —</span>
       <span class="pill" id="files-ok">Files: —</span>
     </div>
 
-    <!-- WP progress -->
     <section style="margin:8px 0 18px">
       <div class="small" id="wp-head">WordPress crawl progress</div>
       <div class="meter"><div class="bar" id="wp-bar"></div></div>
       <div class="small" id="wp-foot" style="margin-top:6px;">No crawl data yet.</div>
       <div class="small" id="wp-overall" style="margin-top:6px;">Overall: —</div>
+      <div class="small" id="next-run" style="margin-top:6px;color:#555;">Next scheduled run: —</div>
     </section>
 
-    <!-- status table -->
     <div id="meta" class="small"></div>
     <div id="table"></div>
   </main>
 
   <footer>
-    <p>Right-click a CSV link → “Save link as…” to download directly. Updated by GitHub Actions.</p>
+    <p>Right-click a CSV link → “Save link as…” to download directly. Updated automatically by GitHub Actions (3 AM / 5 AM / 7 AM UTC).</p>
   </footer>
 
   <script>
@@ -75,13 +72,10 @@
         const rem  = (s.queue && s.queue.length) || 0;
         const total = done + rem;
         const pct = total ? Math.round((done/total)*100) : (done?100:0);
-
         document.getElementById('wp-bar').style.width = pct+'%';
-        document.getElementById('wp-head').textContent = 'WordPress crawl progress';
         document.getElementById('wp-foot').textContent =
           total ? `Completed: ${fmt(done)} • Remaining: ${fmt(rem)} • ${pct}% done`
                 : 'Waiting for first discovery run…';
-        // NEW: explicit overall line
         document.getElementById('wp-overall').textContent =
           total ? `Overall: ${fmt(done)} / ${fmt(total)} (${pct}%)`
                 : `Overall: —`;
@@ -95,8 +89,7 @@
       try{
         const data = await j('output/status.json');
         document.getElementById('meta').textContent =
-          `Generated: ${data.generated_at} (UTC) • Repo: ${data.repo}`;
-
+          `Generated: ${data.generated_at} UTC • Repo: ${data.repo}`;
         const files = data.files||[];
         const rowsTotal = files.reduce((a,f)=>a+(+f.rows||0),0);
         const filesOk = files.filter(f=>f.exists).length + '/' + files.length;
@@ -104,13 +97,11 @@
         document.getElementById('rows-total').textContent = 'Total rows: ' + fmt(rowsTotal);
         document.getElementById('files-ok').textContent = 'Files: ' + filesOk;
 
+        // Table render
         const html = `
           <table>
             <thead>
-              <tr>
-                <th>File</th><th>Description</th><th>Last Updated (UTC)</th>
-                <th>Size</th><th>Total Rows</th><th>New Rows</th><th>Links</th>
-              </tr>
+              <tr><th>File</th><th>Description</th><th>Last Updated (UTC)</th><th>Size</th><th>Total Rows</th><th>New Rows</th><th>Links</th></tr>
             </thead>
             <tbody>
               ${files.map(r=>`
@@ -135,7 +126,19 @@
       }
     }
 
-    loadWP(); loadStatus();
+    function nextRunCountdown(){
+      const runsUTC = [3,5,7]; // scheduled hours UTC
+      const now = new Date();
+      const utcHr = now.getUTCHours(), utcMin = now.getUTCMinutes();
+      let next = runsUTC.find(h=>h>utcHr) ?? runsUTC[0]+24;
+      const hoursLeft = ((next - utcHr) + (utcMin>0?-1:0));
+      const minsLeft = utcMin>0 ? 60-utcMin : 0;
+      document.getElementById('next-run').textContent =
+        `Next scheduled run in ≈ ${hoursLeft} h ${String(minsLeft).padStart(2,'0')} m (3 / 5 / 7 AM UTC schedule)`;
+    }
+
+    loadWP(); loadStatus(); nextRunCountdown();
+    setInterval(nextRunCountdown, 60000); // update every minute
   </script>
 </body>
 </html>
