@@ -1,37 +1,11 @@
-# Configure which sources to collect. You can run everything from main.py or each module directly.
-general:
-  user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
-  delay_seconds: 1.0           # polite crawl delay between HTTP requests
-  max_pages_per_seed: 2000     # safety cap for pagination per seed
-  output_dir: "./output"       # where CSV/JSONL files will be written
-  obey_robots: true            # best effort (advisory); still follow site Terms of Use manually
+# Base site for WordPress mode (REST/sitemap/HTML)
+wordpress_base: "https://exploreplasticsurgery.com"
 
-wordpress:
-  # High-yield WordPress seeds (edit as needed)
-  seeds:
-    - "https://www.eppleyplasticsurgery.com/category/your-questions/"
-    - "https://exploreplasticsurgery.com/blog/"
-  # Optional: only keep posts whose title/body contain any of these case-insensitive keywords
-  include_keywords: []
-  # Optional: drop posts that match any of these keywords
-  exclude_keywords: []
+# PubMed author query (kept broad on purpose)
+pubmed_author_query: "Eppley BL[Author]"
 
-pubmed:
-  # Fetch by author name(s). You may add variations, e.g., "Eppley BL" or "Eppley B"
-  author_queries:
-    - "Eppley BL[Author]"
-  retmax: 500
-  email: ""            # optional, for NCBI polite usage
-  api_key: ""          # optional: https://www.ncbi.nlm.nih.gov/account/settings/
-
-youtube:
-  # Two ways:
-  # 1) Preferred: Supply a channel URL (or playlist URL) and let yt-dlp extract metadata without downloading videos
-  # 2) Or use the official API (requires env var YT_API_KEY and channel_id)
-  # Tip: To find a channel_id, open the channel in a browser and look for /channel/UC... path.
-  # Eppley examples (edit/confirm before running):
-  channel_urls:
-    - "https://www.youtube.com/@exploreplasticsurgery"   # handle-based channel (yt-dlp can resolve)
-  use_yt_dlp: true
-  use_youtube_api: false
-  channel_ids: []     # e.g., ["UCxxxxxxxxxxxxxxxx"]
+# YouTube channel URLs for metadata (flat playlist via yt-dlp)
+# Replace with the channels you want to include. Examples below:
+youtube_channel_urls:
+  - "https://www.youtube.com/@EppleyPlasticSurgery"   # example
+  - "https://www.youtube.com/@barryeppley"            # example
