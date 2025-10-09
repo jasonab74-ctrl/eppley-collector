@@ -1,221 +1,81 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dr. Barry Eppley — Open Data Hub</title>
-  <meta name="description" content="Live CSV archive of Dr. Barry Eppley blog posts, publications (PubMed/Crossref/OpenAlex), clinical trials, ORCID, and YouTube metadata." />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <style>
-    :root{
-      --bg:#0b0c10;--panel:#121318;--ink:#e9eef7;--muted:#a8b3c7;--brand:#53d3a1;
-      --badok:#2ecc71;--badwarn:#f39c12;--baderr:#e74c3c;--chip:#1c1f28;--table:#171923;--line:#222632;
-      --link:#8bd8ff;
-    }
-    html,body{background:var(--bg);color:var(--ink);font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;margin:0}
-    .wrap{max-width:1000px;margin:auto;padding:24px}
-    h1{font-weight:800;letter-spacing:.2px;margin:8px 0 4px}
-    p.lead{color:var(--muted);margin:0 0 16px}
-    .grid{display:grid;gap:16px}
-    @media(min-width:860px){.grid{grid-template-columns:1fr 1fr}}
-    .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
-    .chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-    .chip{background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);font-weight:600}
-    .chip.ok{color:#0ddc86;background:rgba(13,220,134,.08);border-color:rgba(13,220,134,.28)}
-    .chip.warn{color:#ffb648;background:rgba(255,182,72,.08);border-color:rgba(255,182,72,.28)}
-    .chip.err{color:#ff6b6b;background:rgba(255,107,107,.08);border-color:rgba(255,107,107,.28)}
-    .btnrow{display:flex;gap:10px;flex-wrap:wrap}
-    .btn{background:#1f2430;border:1px solid var(--line);color:var(--ink);text-decoration:none;padding:8px 12px;border-radius:10px;font-weight:700}
-    .btn:hover{border-color:#394053}
-    table{width:100%;border-collapse:collapse;background:var(--table);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-    th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-    th{color:#b9c7dc;text-align:left;font-weight:800;background:#141723;position:sticky;top:0}
-    td.small{color:var(--muted);font-size:.95rem}
-    td.num{text-align:right;white-space:nowrap}
-    a{color:var(--link);text-decoration:none}
-    a:hover{text-decoration:underline}
-    .right{margin-left:auto}
-    .meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-weight:700}
-    .stat{display:flex;gap:8px;align-items:center;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-    .k{color:#9fb3d0}
-    .ok{color:var(--badok)} .warn{color:var(--badwarn)} .err{color:var(--baderr)}
-    .foot{color:var(--muted);margin-top:14px}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Eppley Research Dataset</title>
+<meta name="description" content="Unified dataset of Dr. Barry Eppley's publications, videos, and related materials." />
+<style>
+:root{
+  --bg:#0c0d11;--panel:#12141c;--ink:#e9eef7;--muted:#a8b3c7;
+  --brand:#53d3a1;--link:#8bd8ff;--good:#2ecc71;--warn:#f39c12;--bad:#e74c3c;
+}
+html,body{background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:0}
+.wrap{max-width:960px;margin:auto;padding:24px}
+h1{font-weight:800;letter-spacing:.2px;margin:0 0 8px}
+p.lead{color:var(--muted);margin:0 0 24px}
+.card{background:var(--panel);border:1px solid #1f2230;border-radius:12px;padding:20px;margin-bottom:18px}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+table{width:100%;border-collapse:collapse;background:#171923;border-radius:12px;overflow:hidden}
+th,td{padding:10px 12px;border-bottom:1px solid #222632}
+th{text-align:left;color:#b9c7dc;font-weight:800;background:#141723}
+td.small{color:var(--muted)}
+.status{font-weight:700}
+.ok{color:var(--good)}.warn{color:var(--warn)}.err{color:var(--bad)}
+.foot{color:var(--muted);margin-top:12px;font-size:14px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Dr. Barry Eppley — Open Data Hub</h1>
-    <p class="lead">
-      Live CSV archive of blog posts/Q&amp;A, publications (PubMed, Crossref, OpenAlex), ClinicalTrials.gov,
-      ORCID records, and YouTube metadata. Updated automatically when new data lands in <span class="mono">/output</span>.
-    </p>
+<div class="wrap">
+<h1>Dr. Barry Eppley Research Dataset</h1>
+<p class="lead">Automatically collected and aggregated from public APIs: publications, clinical trials, and video content. Updated nightly.</p>
 
-    <div class="chips" id="badges">
-      <span class="chip ok" id="dataReady">data: ready</span>
-      <span class="chip" id="lastUpdated">Last updated: …</span>
-    </div>
+<div class="card">
+  <h3>Dataset Overview</h3>
+  <table id="table">
+    <thead>
+      <tr><th>File</th><th>Description</th><th>Rows</th><th>Status</th><th>Download</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <p class="foot">Unified dataset: <a href="output/eppley_master.csv" target="_blank">output/eppley_master.csv</a></p>
+</div>
 
-    <div class="btnrow">
-      <a class="btn" id="repoLink" href="https://github.com/jasonab74-ctrl/eppley-collector" target="_blank" rel="noopener">View Repo</a>
-      <a class="btn" id="statusLink" href="status.html">Status</a>
-    </div>
+<script>
+const FILES = [
+  {name:"wordpress_posts.csv",desc:"All blog & Q&A posts authored by Dr. Eppley",min:50},
+  {name:"pubmed_eppley.csv",desc:"Peer-reviewed PubMed research articles",min:150},
+  {name:"crossref_works.csv",desc:"Crossref-indexed scholarly works",min:1000},
+  {name:"openalex_works.csv",desc:"OpenAlex-identified research works",min:50},
+  {name:"clinical_trials.csv",desc:"ClinicalTrials.gov studies related to Eppley",min:1},
+  {name:"orcid_profiles.csv",desc:"ORCID public researcher profiles",min:1},
+  {name:"orcid_works.csv",desc:"ORCID-linked publication data",min:1},
+  {name:"youtube_all.csv",desc:"YouTube videos mentioning or uploaded by Dr. Eppley",min:20},
+  {name:"eppley_master.csv",desc:"Unified master dataset (merged from all sources)",min:400}
+];
 
-    <div class="grid" style="margin-top:16px">
-      <div class="card">
-        <h3>Dataset at a glance</h3>
-        <div class="meta" style="margin-top:8px">
-          <div class="stat"><span class="k">Files</span> <span class="right" id="fileCount">0</span></div>
-          <div class="stat"><span class="k">Total rows</span> <span class="right" id="totalRows">0</span></div>
-          <div class="stat"><span class="k">WordPress posts</span> <span class="right" id="wpRows">0</span></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Quick links</h3>
-        <ul id="quickLinks" style="margin:10px 0 0 16px;line-height:1.7"></ul>
-        <p class="foot">Right-click a CSV → <i>Save link as…</i> to download directly.</p>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <h3>File details</h3>
-      <table id="files">
-        <thead>
-          <tr>
-            <th style="width:34%">File</th>
-            <th>Description</th>
-            <th style="width:12%">Rows</th>
-            <th style="width:12%">Status</th>
-            <th style="width:12%">Download</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <p class="foot">Site URL: <a id="siteUrl" href="#" target="_blank" rel="noopener"></a></p>
-    </div>
-  </div>
-
-  <script>
-  // --- configuration of the files we show ---
-  const FILES = [
-    {
-      name: "wordpress_posts.csv",
-      desc: "All blog & Q&A posts (title, date, URL, tags, plus extracted text).",
-    },
-    {
-      name: "pubmed_eppley.csv",
-      desc: "PubMed summary for papers authored/co-authored by Dr. Eppley.",
-    },
-    {
-      name: "crossref_works.csv",
-      desc: "Crossref works (titles, DOIs, years, journal metadata).",
-    },
-    {
-      name: "openalex_works.csv",
-      desc: "OpenAlex works (papers/works; IDs, venues, concepts, citations).",
-    },
-    {
-      name: "clinical_trials.csv",
-      desc: "ClinicalTrials.gov matches (NCT IDs, titles, statuses).",
-    },
-    {
-      name: "orcid_profiles.csv",
-      desc: "ORCID profile snapshots (name, institutions, identifiers).",
-    },
-    {
-      name: "orcid_works.csv",
-      desc: "ORCID works (titles, years, external IDs).",
-    },
-    {
-      name: "youtube_all.csv",
-      desc: "YouTube channel metadata and videos mentioning Dr. Eppley.",
-    }
-  ];
-
-  // resolve base (supports both root and /docs hosting)
-  const HERE = new URL(document.currentScript.src, location.href);
-  const base = location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/[^/]+$/, '');
-  const siteRoot = location.origin + base.replace(/\/docs\/?$/, '/');
-  const outputBase = siteRoot + 'output/';
-  document.getElementById('siteUrl').textContent = siteRoot;
-  document.getElementById('siteUrl').href = siteRoot;
-
-  // quick links and table rows
-  const ql = document.getElementById('quickLinks');
-  const tbody = document.querySelector('#files tbody');
-
-  FILES.forEach(f => {
-    // quick link
-    const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.href = outputBase + f.name;
-    a.textContent = f.name;
-    a.rel = "noopener";
-    a.target = "_blank";
-    li.appendChild(a);
-    ql.appendChild(li);
-
-    // table row
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><a href="${outputBase + f.name}" target="_blank" rel="noopener">${f.name}</a></td>
-      <td class="small">${f.desc}</td>
-      <td class="num" data-rows>–</td>
-      <td data-status>checking…</td>
-      <td class="num"><a href="${outputBase + f.name}" target="_blank" rel="noopener">CSV</a></td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  // helper: count lines quickly (client-side)
-  async function countCsvRows(url) {
-    try {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) return { ok:false, rows:0, status:`${r.status}` };
-      const text = await r.text();
-      // count newline occurrences; subtract header if present
-      const lines = text.split(/\r?\n/).filter(Boolean);
-      const rows = lines.length > 0 ? lines.length - 1 : 0;
-      return { ok:true, rows, status:'ok' };
-    } catch (e) {
-      return { ok:false, rows:0, status:'error' };
-    }
+async function countRows(url){
+  try{
+    const r = await fetch(url,{cache:'no-store'});
+    if(!r.ok) return {rows:0,ok:false};
+    const t = await r.text();
+    const n = Math.max(0,t.split(/\r?\n/).filter(Boolean).length-1);
+    return {rows:n,ok:true};
+  }catch{return {rows:0,ok:false};}
+}
+(async()=>{
+  const tb=document.querySelector('#table tbody');
+  for(const f of FILES){
+    const url="output/"+f.name;
+    const {rows,ok}=await countRows(url);
+    const stat=ok?(rows>=f.min?`<span class='ok'>ok</span>`:`<span class='warn'>warn</span>`):`<span class='err'>missing</span>`;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${f.name}</td><td class="small">${f.desc}</td><td>${rows}</td><td class='status'>${stat}</td><td><a href="${url}" target="_blank">CSV</a></td>`;
+    tb.appendChild(tr);
   }
-
-  // fill table with counts + statuses
-  (async () => {
-    const rowCells = document.querySelectorAll('[data-rows]');
-    const statusCells = document.querySelectorAll('[data-status]');
-    let total = 0, wpCount = 0, have = 0;
-
-    for (let i=0; i<FILES.length; i++){
-      const url = outputBase + FILES[i].name;
-      const { ok, rows, status } = await countCsvRows(url);
-
-      rowCells[i].textContent = rows.toLocaleString();
-      statusCells[i].innerHTML = ok
-        ? `<span class="ok">ok</span>`
-        : (status === '404' ? `<span class="warn">missing</span>` : `<span class="err">error</span>`);
-
-      if (ok){ total += rows; have++; }
-      if (FILES[i].name === 'wordpress_posts.csv') wpCount = rows;
-    }
-
-    document.getElementById('fileCount').textContent = `${have}/${FILES.length}`;
-    document.getElementById('totalRows').textContent = total.toLocaleString();
-    document.getElementById('wpRows').textContent = wpCount.toLocaleString();
-
-    // last updated = Last-Modified header of any known CSV (fallback to now)
-    let last = '';
-    try {
-      const r = await fetch(outputBase + FILES[0].name, { method:'HEAD', cache:'no-store' });
-      last = r.headers.get('last-modified') || '';
-    } catch {}
-    const when = last ? new Date(last) : new Date();
-    document.getElementById('lastUpdated').textContent =
-      `Last updated: ${when.toUTCString().replace('GMT','UTC')}`;
-  })();
-  </script>
+})();
+</script>
+</div>
 </body>
 </html>
