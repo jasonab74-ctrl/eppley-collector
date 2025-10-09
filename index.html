@@ -7,24 +7,70 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    :root{--fg:#111;--muted:#666;--line:#e6e6ef;--pill:#f7f7fb}
+    :root{
+      --fg:#111; --muted:#666; --line:#e6e6ef; --pill:#f7f7fb; --accent:#12a150;
+    }
     *{box-sizing:border-box}
-    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;color:var(--fg);background:#fff}
-    header{padding:24px 18px;border-bottom:1px solid var(--line)}
-    h1{margin:0 0 6px} .sub{margin:0;color:var(--muted)}
-    main{max-width:1100px;margin:22px auto;padding:0 16px}
-    .badges{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
-    .statbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 18px}
-    .pill{border:1px solid #111;border-radius:999px;padding:8px 12px;font-size:14px;background:#fff}
-    .meter{background:#f1f1f6;border:1px solid var(--line);border-radius:10px;overflow:hidden;height:16px}
-    .bar{height:100%;background:#12a150;width:0%}
-    .small{color:var(--muted);font-size:12px}
-    table{border-collapse:collapse;width:100%;margin-top:14px}
-    th,td{border:1px solid var(--line);padding:10px;text-align:left;font-size:14px}
-    th{background:var(--pill)}
-    .btn{display:inline-block;padding:8px 10px;border:1px solid #111;border-radius:10px;text-decoration:none;color:#111;margin-right:6px}
-    .btn:hover{background:#111;color:#fff}
-    footer{margin:32px 0;padding:16px;color:#666;text-align:center;font-size:12px}
+    html,body{height:100%}
+    body{
+      margin:0; color:var(--fg); background:#fff;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      line-height:1.35;
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    }
+    header{
+      padding:clamp(14px, 2.5vw, 24px) clamp(12px, 2.4vw, 18px);
+      border-bottom:1px solid var(--line);
+    }
+    h1{
+      margin:0 0 4px;
+      font-weight:700;
+      font-size:clamp(1.4rem, 2.3vw + 1rem, 2.2rem);
+      line-height:1.15;
+      letter-spacing:-0.01em;
+    }
+    .sub{
+      margin:0; color:var(--muted);
+      font-size:clamp(.9rem, .5vw + .8rem, 1rem);
+    }
+    main{
+      max-width:1100px; margin:18px auto; padding:0 clamp(12px, 2.4vw, 16px);
+    }
+
+    /* badges */
+    .badges{display:flex; gap:10px; flex-wrap:wrap; margin:10px 0}
+    .badges img{height:22px}
+    @media (max-width:480px){ .badges img{height:20px} }
+
+    /* stat pills: auto-fit grid so they wrap nicely on mobile */
+    .statbar{
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:10px; margin:8px 0 18px;
+    }
+    .pill{
+      border:1px solid #111; border-radius:999px; background:#fff;
+      padding:10px 12px; font-size:clamp(12px, .5vw + 11px, 14px);
+      display:flex; align-items:center; justify-content:center;
+    }
+
+    /* progress meter */
+    .meter{background:#f1f1f6; border:1px solid var(--line); border-radius:12px; overflow:hidden; height:clamp(12px, .8vw + 10px, 18px)}
+    .bar{height:100%; background:var(--accent); width:0%}
+    .small{color:var(--muted); font-size:clamp(12px, .4vw + 10px, 13.5px)}
+
+    /* table with horizontal scroll on small screens (keeps all columns) */
+    .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:10px}
+    table{border-collapse:collapse; width:100%; min-width:720px; background:#fff}
+    th,td{border-bottom:1px solid var(--line); padding:10px; font-size:14px; text-align:left; vertical-align:top}
+    th{background:var(--pill); position:sticky; top:0; z-index:1}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .btn{
+      display:inline-block; padding:10px 12px; border:1px solid #111; border-radius:10px;
+      text-decoration:none; color:#111; margin-right:6px; white-space:nowrap;
+    }
+    .btn:hover{background:#111; color:#fff}
+
+    footer{margin:28px 0; padding:0 6px; color:#666; text-align:center; font-size:12px}
   </style>
 </head>
 <body>
@@ -34,17 +80,20 @@
   </header>
 
   <main>
+    <!-- live workflow badges -->
     <div class="badges">
       <img alt="Scraper status" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/run-scraper.yml?branch=main&label=Scraper">
       <img alt="Status builder" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/build-status.yml?branch=main&label=Data%20Status">
     </div>
 
+    <!-- top stats -->
     <div class="statbar" id="top-stats">
       <span class="pill" id="last-run">Last updated: —</span>
       <span class="pill" id="rows-total">Total rows: —</span>
       <span class="pill" id="files-ok">Files: —</span>
     </div>
 
+    <!-- WP progress -->
     <section style="margin:8px 0 18px">
       <div class="small" id="wp-head">WordPress crawl progress</div>
       <div class="meter"><div class="bar" id="wp-bar"></div></div>
@@ -53,12 +102,15 @@
       <div class="small" id="next-run" style="margin-top:6px;color:#555;">Next scheduled run: —</div>
     </section>
 
-    <div id="meta" class="small"></div>
-    <div id="table"></div>
+    <!-- status meta + table -->
+    <div id="meta" class="small" style="margin-bottom:6px;"></div>
+    <div class="table-wrap" id="table-wrap">
+      <div id="table"></div>
+    </div>
   </main>
 
   <footer>
-    <p>Right-click a CSV link → “Save link as…” to download directly. Updated automatically by GitHub Actions (3 AM / 5 AM / 7 AM UTC).</p>
+    Right-click a CSV link → “Save link as…” to download directly. Updated by GitHub Actions (3 AM / 5 AM / 7 AM UTC).
   </footer>
 
   <script>
@@ -97,11 +149,19 @@
         document.getElementById('rows-total').textContent = 'Total rows: ' + fmt(rowsTotal);
         document.getElementById('files-ok').textContent = 'Files: ' + filesOk;
 
-        // Table render
+        // build table HTML
         const html = `
           <table>
             <thead>
-              <tr><th>File</th><th>Description</th><th>Last Updated (UTC)</th><th>Size</th><th>Total Rows</th><th>New Rows</th><th>Links</th></tr>
+              <tr>
+                <th>File</th>
+                <th>Description</th>
+                <th>Last Updated (UTC)</th>
+                <th>Size</th>
+                <th>Total Rows</th>
+                <th>New Rows</th>
+                <th>Links</th>
+              </tr>
             </thead>
             <tbody>
               ${files.map(r=>`
@@ -122,19 +182,23 @@
         document.getElementById('table').innerHTML = html;
       }catch(e){
         document.getElementById('table').innerHTML =
-          '<p>status.json not yet available — run “Build Data Status” after the scraper commits, then refresh.</p>';
+          '<div style="padding:12px">status.json not yet available — run “Build Data Status” after the scraper commits, then refresh.</div>';
       }
     }
 
     function nextRunCountdown(){
-      const runsUTC = [3,5,7]; // scheduled hours UTC
+      const runsUTC = [3,5,7]; // schedule hours UTC
       const now = new Date();
       const utcHr = now.getUTCHours(), utcMin = now.getUTCMinutes();
-      let next = runsUTC.find(h=>h>utcHr) ?? runsUTC[0]+24;
-      const hoursLeft = ((next - utcHr) + (utcMin>0?-1:0));
-      const minsLeft = utcMin>0 ? 60-utcMin : 0;
+      let next = runsUTC.find(h=>h>utcHr);
+      let addDays = 0;
+      if(next === undefined){ next = runsUTC[0]; addDays = 1; }
+      const nextDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+addDays, next, 0, 0));
+      const ms = nextDate - now;
+      const h = Math.max(0, Math.floor(ms/3600000));
+      const m = Math.max(0, Math.floor((ms%3600000)/60000));
       document.getElementById('next-run').textContent =
-        `Next scheduled run in ≈ ${hoursLeft} h ${String(minsLeft).padStart(2,'0')} m (3 / 5 / 7 AM UTC schedule)`;
+        `Next scheduled run in ≈ ${h} h ${String(m).padStart(2,'0')} m (3 / 5 / 7 AM UTC schedule)`;
     }
 
     loadWP(); loadStatus(); nextRunCountdown();
