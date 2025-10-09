@@ -1,33 +1,53 @@
 #!/usr/bin/env python3
 """
-Eppley Collector — resilient, resumable scraper
-- WordPress Q&A/blog: incremental crawl with checkpointing + partial saves
-- PubMed: E-utilities fetch by author query
-- YouTube: metadata only via yt-dlp (no downloads)
+Eppley Collector — FAST + Resumable
 
-Outputs (always written to ./output/):
+Speed-first strategy:
+  1) WordPress REST API (100 posts/page)  -> fastest
+  2) Sitemaps (post-sitemap*.xml)         -> very fast discovery
+  3) HTML crawl (polite)                   -> fallback
+All modes checkpoint & save partial results frequently.
+
+Outputs (in ./output/):
   - wordpress_posts.csv / .jsonl
-  - pubmed_eppley.csv / .jsonl
+  - pubmed_eppley.csv  / .jsonl
   - youtube_metadata.csv / .jsonl
 State:
-  - wp_state.json (resume checkpoint for WordPress crawl)
+  - wp_state.json (resume/cursor + last-modified map for HTML)
 
-Usage examples (used by GitHub Actions):
+CLI examples (used by GitHub Actions):
   python main.py --only wp --wp-max 600 --save-every 150 --delay 3.5
   python main.py --only pubmed
   python main.py --only yt
   python main.py --only all
 """
 
-import argparse, csv, json, os, re, time, pathlib, subprocess, requests
+from __future__ import annotations
+import argparse, csv, json, os, re, time, pathlib, subprocess, requests, xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Iterable, Optional
+from urllib.parse import urljoin, urlencode
 from bs4 import BeautifulSoup
-from urllib.parse import urlencode
+
+# ---------------- Config & paths ----------------
 
 OUTPUT_DIR = pathlib.Path("output")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
 CONFIG_PATH = pathlib.Path("config.yaml")  # optional
+WP_STATE = OUTPUT_DIR / "wp_state.json"
+
+WP_CSV   = OUTPUT_DIR / "wordpress_posts.csv"
+WP_JSONL = OUTPUT_DIR / "wordpress_posts.jsonl"
+
+PM_CSV   = OUTPUT_DIR / "pubmed_eppley.csv"
+PM_JSONL = OUTPUT_DIR / "pubmed_eppley.jsonl"
+
+YT_CSV   = OUTPUT_DIR / "youtube_metadata.csv"
+YT_JSONL = OUTPUT_DIR / "youtube_metadata.jsonl"
+
+
+# ---------------- Utilities ----------------
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -57,11 +77,13 @@ def append_jsonl(path: pathlib.Path, rows: List[Dict]):
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-def safe_get(url: str, session: requests.Session, max_retries=3, backoff=2.0, timeout=20):
-    for attempt in range(1, max_retries + 1):
+def safe_get(url: str, session: requests.Session, headers: Optional[Dict]=None, max_retries=3, backoff=2.0, timeout=25):
+    headers = headers or {}
+    for attempt in range(1, max_retries+1):
         try:
-            r = session.get(url, timeout=timeout, headers={"User-Agent": "eppley-collector/1.0"})
-            if r.status_code == 200:
+            r = session.get(url, timeout=timeout, headers={"User-Agent":"eppley-collector/2.0", **headers})
+            # REST endpoints sometimes error with 400 when page too high — treat non-200 as final except 429/5xx
+            if r.status_code == 200 or r.status_code == 304:
                 return r
             if r.status_code in (429, 500, 502, 503, 504):
                 time.sleep(backoff * attempt)
@@ -73,232 +95,27 @@ def safe_get(url: str, session: requests.Session, max_retries=3, backoff=2.0, ti
             time.sleep(backoff * attempt)
     return None
 
-# ---------- WordPress (resumable) ----------
-WP_STATE = OUTPUT_DIR / "wp_state.json"
-WP_CSV = OUTPUT_DIR / "wordpress_posts.csv"
-WP_JSONL = OUTPUT_DIR / "wordpress_posts.jsonl"
+def ensure_wp_headers():
+    return ["url", "title", "date", "tags", "body", "collected_at", "source"]
 
-def load_wp_state() -> Dict:
+def flush_wp(rows: List[Dict], mode="a"):
+    flds = ensure_wp_headers()
+    if not WP_CSV.exists() or mode == "w":
+        write_csv(WP_CSV, [], flds, mode="w")
+        mode = "a"
+    write_csv(WP_CSV, rows, flds, mode=mode)
+    append_jsonl(WP_JSONL, rows)
+
+# ---------------- State ----------------
+
+def load_state() -> Dict:
     if WP_STATE.exists():
         try:
             return json.loads(WP_STATE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    return {"visited": [], "queue": [], "completed": 0, "last_save_at": 0}
-
-def save_wp_state(state: Dict):
-    WP_STATE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-
-def discover_wp_urls(seeds: List[str], session: requests.Session, limit=None):
-    seen = set()
-    for seed in seeds:
-        r = safe_get(seed, session)
-        if not r: 
-            continue
-        soup = BeautifulSoup(r.text, "html.parser")
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if href in seen:
-                continue
-            if re.search(r"exploreplasticsurgery|your-questions", href, flags=re.I) or re.search(r"/20\d{2}/\d{2}/", href):
-                seen.add(href)
-                yield href
-                if limit and len(seen) >= limit:
-                    return
-
-def extract_post(url: str, session: requests.Session) -> Dict:
-    r = safe_get(url, session)
-    if not r:
-        return {}
-    soup = BeautifulSoup(r.text, "html.parser")
-    title_el = soup.find(["h1", "h2"])
-    title = (title_el.get_text(strip=True) if title_el else "").strip()
-    date = ""
-    time_el = soup.find("time")
-    if time_el and time_el.get("datetime"):
-        date = time_el["datetime"]
-    elif time_el:
-        date = time_el.get_text(strip=True)
-    body_parts = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
-    body = "\n".join(body_parts).strip()
-    tags = ", ".join(sorted({a.get_text(strip=True) for a in soup.select("a[rel=tag]")}))
-    return {"url": url, "title": title, "date": date, "tags": tags, "body": body, "collected_at": utc_now()}
-
-def run_wp(max_pages: int, save_every: int, delay: float, session: requests.Session, config: Dict):
-    seeds = []
-    for key in ("wordpress_seeds", "wordpress", "wp_seeds"):
-        if key in config and isinstance(config[key], list):
-            seeds = config[key]; break
-    if not seeds:
-        seeds = [
-            "https://exploreplasticsurgery.com",
-            "https://exploreplasticsurgery.com/your-questions"
-        ]
-
-    state = load_wp_state()
-    visited = set(state.get("visited", []))
-    queue = list(state.get("queue") or [])
-
-    if not queue:
-        print(f"[wp] discovering from {len(seeds)} seeds…")
-        for u in discover_wp_urls(seeds, session):
-            if u not in visited:
-                queue.append(u)
-        print(f"[wp] discovered {len(queue)} listing/post URLs")
-
-    fieldnames = ["url", "title", "date", "tags", "body", "collected_at"]
-    if not WP_CSV.exists():
-        write_csv(WP_CSV, [], fieldnames, mode="w")
-
-    batch_rows = []
-    processed_this_run = 0
-    started = time.time()
-
-    while queue and processed_this_run < max_pages:
-        url = queue.pop(0)
-        if url in visited:
-            continue
-        visited.add(url)
-
-        if re.search(r"/page/\d+|category|tag|your-questions|exploreplasticsurgery", url, flags=re.I):
-            r = safe_get(url, session)
-            if r:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for a in soup.find_all("a", href=True):
-                    href = a["href"]
-                    if re.search(r"/20\d{2}/\d{2}/|/your-questions/", href, flags=re.I):
-                        if href not in visited:
-                            queue.append(href)
-        else:
-            item = extract_post(url, session)
-            if item.get("url"):
-                batch_rows.append(item)
-
-        processed_this_run += 1
-        state["completed"] = state.get("completed", 0) + 1
-
-        if len(batch_rows) >= save_every:
-            print(f"[wp] saving {len(batch_rows)} rows (partial)…")
-            write_csv(WP_CSV, batch_rows, fieldnames, mode="a")
-            append_jsonl(WP_JSONL, batch_rows)
-            batch_rows = []
-            state["last_save_at"] = utc_now()
-            state["visited"] = list(visited)
-            state["queue"] = queue
-            save_wp_state(state)
-
-        time.sleep(delay)
-
-        if processed_this_run % 50 == 0:
-            elapsed = time.time() - started
-            print(f"[wp] progress {processed_this_run}/{max_pages} (elapsed {int(elapsed)}s) queue={len(queue)}")
-
-    if batch_rows:
-        print(f"[wp] final save of {len(batch_rows)} rows")
-        write_csv(WP_CSV, batch_rows, fieldnames, mode="a")
-        append_jsonl(WP_JSONL, batch_rows)
-
-    state["visited"] = list(visited)
-    state["queue"] = queue
-    state["last_save_at"] = utc_now()
-    save_wp_state(state)
-
-    print(f"[wp] done this run. processed={processed_this_run}, remaining in queue={len(queue)}")
-
-# ---------- PubMed ----------
-PM_CSV = OUTPUT_DIR / "pubmed_eppley.csv"
-PM_JSONL = OUTPUT_DIR / "pubmed_eppley.jsonl"
-
-def fetch_pubmed(author_query="Eppley BL[Author]", retmax=5000) -> List[Dict]:
-    base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
-    q = {"db":"pubmed","term":author_query,"retmode":"json","retmax":retmax}
-    search = requests.get(base + "esearch.fcgi", params=q, timeout=30).json()
-    ids = search.get("esearchresult", {}).get("idlist", [])
-    if not ids:
-        return []
-    params = {"db":"pubmed","id":",".join(ids),"retmode":"json"}
-    summ = requests.get(base + "esummary.fcgi", params=params, timeout=30).json()
-    out = []
-    for pmid, rec in summ.get("result", {}).items():
-        if pmid == "uids": 
-            continue
-        out.append({
-            "pmid": pmid,
-            "title": rec.get("title",""),
-            "journal": rec.get("fulljournalname",""),
-            "year": rec.get("pubdate",""),
-            "authors": ", ".join([a.get("name","") for a in rec.get("authors", [])]),
-            "doi": rec.get("elocationid",""),
-            "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
-            "collected_at": utc_now()
-        })
-    return out
-
-def run_pubmed(config: Dict):
-    author_q = config.get("pubmed_author_query") or "Eppley BL[Author]"
-    rows = fetch_pubmed(author_q)
-    fields = ["pmid","title","journal","year","authors","doi","url","collected_at"]
-    write_csv(PM_CSV, rows, fields, mode="w")
-    append_jsonl(PM_JSONL, rows)
-    print(f"[pubmed] wrote {len(rows)} records")
-
-# ---------- YouTube ----------
-YT_CSV = OUTPUT_DIR / "youtube_metadata.csv"
-YT_JSONL = OUTPUT_DIR / "youtube_metadata.jsonl"
-
-def run_youtube(config: Dict):
-    ch_urls = config.get("channel_urls") or config.get("youtube_channel_urls") or []
-    rows = []
-    for url in ch_urls:
-        try:
-            cmd = ["yt-dlp", "--dump-json", "--flat-playlist", url]
-            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            for line in proc.stdout.splitlines():
-                try:
-                    j = json.loads(line)
-                    rows.append({
-                        "title": j.get("title",""),
-                        "uploader": j.get("uploader",""),
-                        "webpage_url": j.get("webpage_url") or (("https://www.youtube.com/watch?v="+j.get("id")) if j.get("id") else ""),
-                        "id": j.get("id",""),
-                        "duration": j.get("duration",""),
-                        "collected_at": utc_now()
-                    })
-                except json.JSONDecodeError:
-                    continue
-        except FileNotFoundError:
-            print("[yt] yt-dlp not found; skip")
-            break
-
-    fields = ["title","uploader","webpage_url","id","duration","collected_at"]
-    write_csv(YT_CSV, rows, fields, mode="w")
-    append_jsonl(YT_JSONL, rows)
-    print(f"[yt] wrote {len(rows)} rows")
-
-# ---------- CLI ----------
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--only", choices=["wp","pubmed","yt","all"], default="all")
-    ap.add_argument("--wp-max", type=int, default=1000, help="max pages to process this run (listings+posts)")
-    ap.add_argument("--save-every", type=int, default=200, help="flush output every N posts")
-    ap.add_argument("--delay", type=float, default=3.0, help="seconds between requests")
-    args = ap.parse_args()
-
-    config = load_yaml_config(CONFIG_PATH)
-
-    with requests.Session() as session:
-        if args.only in ("wp","all"):
-            run_wp(args.wp_max, args.save_every, args.delay, session, config)
-        if args.only in ("pubmed","all"):
-            run_pubmed(config)
-        if args.only in ("yt","all"):
-            run_youtube(config)
-
-    print(json.dumps({
-        "wordpress_csv": str(WP_CSV),
-        "pubmed_csv": str(PM_CSV),
-        "youtube_csv": str(YT_CSV)
-    }, indent=2))
-
-if __name__ == "__main__":
-    main()
+    return {
+        "mode": "auto",
+        "rest": {"next_page": 1, "base": None, "per_page": 100, "done": False},
+        "sitemap": {"queue": [], "seen": []},
+       
