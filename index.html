@@ -1,219 +1,200 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dr. Barry Eppley — Data Hub</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --fg:#111; --muted:#666; --line:#e6e6ef; --pill:#f7f7fb; --accent:#12a150; --error:#b3261e; --error-bg:#fde7e6;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; color:var(--fg); background:#fff;
-      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      line-height:1.35;
-      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    }
-    header{
-      padding:clamp(14px, 2.5vw, 24px) clamp(12px, 2.4vw, 18px);
-      border-bottom:1px solid var(--line);
-    }
-    h1{
-      margin:0 0 4px;
-      font-weight:700;
-      font-size:clamp(1.4rem, 2.3vw + 1rem, 2.2rem);
-      line-height:1.15;
-      letter-spacing:-0.01em;
-    }
-    .sub{ margin:0; color:var(--muted); font-size:clamp(.9rem, .5vw + .8rem, 1rem); }
-    main{ max-width:1100px; margin:18px auto; padding:0 clamp(12px, 2.4vw, 16px); }
-
-    .badges{display:flex; gap:10px; flex-wrap:wrap; margin:10px 0}
-    .badges img{height:22px}
-    @media (max-width:480px){ .badges img{height:20px} }
-
-    .health{
-      display:none; margin:10px 0; padding:10px 12px; border-radius:8px;
-      border:1px solid var(--error); background:var(--error-bg); color:var(--error);
-      font-size:14px;
-    }
-
-    .topbar{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0 10px;
-    }
-    .btn{
-      display:inline-block; padding:10px 12px; border:1px solid #111; border-radius:10px;
-      text-decoration:none; color:#111; white-space:nowrap;
-    }
-    .btn:hover{background:#111; color:#fff}
-
-    .statbar{
-      display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-      gap:10px; margin:8px 0 18px;
-    }
-    .pill{
-      border:1px solid #111; border-radius:999px; background:#fff;
-      padding:10px 12px; font-size:clamp(12px, .5vw + 11px, 14px);
-      display:flex; align-items:center; justify-content:center;
-    }
-
-    .meter{background:#f1f1f6; border:1px solid var(--line); border-radius:12px; overflow:hidden; height:clamp(12px, .8vw + 10px, 18px)}
-    .bar{height:100%; background:var(--accent); width:0%}
-    .small{color:var(--muted); font-size:clamp(12px, .4vw + 10px, 13.5px)}
-
-    .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:10px}
-    table{border-collapse:collapse; width:100%; min-width:720px; background:#fff}
-    th,td{border-bottom:1px solid var(--line); padding:10px; font-size:14px; text-align:left; vertical-align:top}
-    th{background:var(--pill); position:sticky; top:0; z-index:1}
-    code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Dr. Barry Eppley – Open Data Hub</title>
+<meta name="color-scheme" content="dark light" />
+<style>
+  :root{
+    --bg:#0b0d10; --card:#11151b; --fg:#e6edf3; --muted:#9aa7b2; --line:#1c232b;
+    --accent:#22c55e; --danger:#ef4444; --link:#93c5fd;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#ffffff; --card:#f7f7f8; --fg:#0e141b; --muted:#586271; --line:#e4e7eb; --link:#0b6ef9; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif}
+  a{color:var(--link);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:980px;margin:0 auto;padding:22px}
+  header{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  h1{font-size:clamp(24px,5vw,40px);margin:0}
+  .sub{color:var(--muted);margin:6px 0 0}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .chip{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:13px}
+  .ok{border-color:rgba(34,197,94,.4);color:#a7f3d0;background:rgba(34,197,94,.10)}
+  .bad{border-color:rgba(239,68,68,.4);color:#fecaca;background:rgba(239,68,68,.08)}
+  .grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:16px}
+  @media(min-width:760px){.grid{grid-template-columns:1.1fr .9fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .kpis{display:flex;gap:10px;flex-wrap:wrap}
+  .kbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:140px;background:transparent}
+  .kcap{color:var(--muted);font-size:12px}
+  .kval{font-weight:800;font-size:20px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  .oktxt{color:#16a34a;font-weight:700}
+  .badtxt{color:#dc2626;font-weight:700}
+  footer{color:var(--muted);margin:18px 0 6px}
+  code{background:rgba(125,125,125,.14);padding:2px 6px;border-radius:6px}
+  .note{color:var(--muted);font-size:13px;margin-top:8px}
+  .btns{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{display:inline-block;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card)}
+  .btn:focus{outline:2px solid var(--line)}
+</style>
 </head>
 <body>
+<div class="wrap">
   <header>
-    <h1>Dr. Barry Eppley — Data Hub</h1>
-    <p class="sub">Live archive of blog Q&amp;As, PubMed, Crossref, OpenAlex, ORCID, ClinicalTrials, Semantic Scholar &amp; YouTube. Auto-updated every few hours.</p>
+    <div>
+      <h1>Dr. Barry Eppley — Open Data Hub</h1>
+      <p class="sub">Live CSV archive (blog posts, papers, registries, ORCID/OpenAlex, YouTube). Updated whenever PRs merge into <code>main</code>.</p>
+      <div class="chips">
+        <span class="chip" id="chip-data">Data: —</span>
+        <span class="chip" id="chip-updated">Last updated: —</span>
+      </div>
+    </div>
+    <div class="btns">
+      <a class="btn" href="https://github.com/jasonab74-ctrl/eppley-collector" target="_blank" rel="noopener">View Repo</a>
+      <a class="btn" href="./status.html">Status</a>
+    </div>
   </header>
 
-  <main>
-    <div class="badges">
-      <img alt="Scraper status" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/run-scraper.yml?branch=main&label=Scraper">
-      <img alt="Status builder" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/build-status.yml?branch=main&label=Data%20Status">
-    </div>
-
-    <div id="health" class="health">Recent workflow failed. Data may be stale. Check GitHub Actions for details.</div>
-
-    <div class="topbar">
-      <a class="btn" href="https://github.com/jasonab74-ctrl/eppley-collector/releases/tag/nightly" target="_blank" rel="noopener">⬇︎ Download latest ZIP</a>
-      <a class="btn" href="output/manifest.json" target="_blank" rel="noopener">☑︎ Checksums (manifest.json)</a>
-    </div>
-
-    <div class="statbar" id="top-stats">
-      <span class="pill" id="last-run">Last updated: —</span>
-      <span class="pill" id="rows-total">Total rows: —</span>
-      <span class="pill" id="files-ok">Files: —</span>
-    </div>
-
-    <section style="margin:8px 0 18px">
-      <div class="small" id="wp-head">WordPress crawl progress</div>
-      <div class="meter"><div class="bar" id="wp-bar"></div></div>
-      <div class="small" id="wp-foot" style="margin-top:6px;">No crawl data yet.</div>
-      <div class="small" id="wp-overall" style="margin-top:6px;">Overall: —</div>
-      <div class="small" id="next-run" style="margin-top:6px;color:#555;">Next scheduled run: —</div>
+  <div class="grid">
+    <section class="card">
+      <h3 style="margin:6px 0 8px">Dataset at a glance</h3>
+      <div class="kpis">
+        <div class="kbox">
+          <div class="kcap">Files</div>
+          <div class="kval" id="k-files">—</div>
+        </div>
+        <div class="kbox">
+          <div class="kcap">Total rows</div>
+          <div class="kval" id="k-rows">—</div>
+        </div>
+        <div class="kbox">
+          <div class="kcap">WordPress posts</div>
+          <div class="kval" id="k-wp">—</div>
+        </div>
+        <div class="kbox">
+          <div class="kcap">Publications (Crossref)</div>
+          <div class="kval" id="k-cr">—</div>
+        </div>
+      </div>
+      <p class="note">Counts are computed client-side by fetching the CSV headers and lines from <code>/output/</code> on this site—no server needed.</p>
     </section>
 
-    <div id="meta" class="small" style="margin-bottom:6px;"></div>
-    <div class="table-wrap" id="table-wrap">
-      <div id="table"></div>
-    </div>
-  </main>
+    <section class="card">
+      <h3 style="margin:6px 0 8px">Quick links</h3>
+      <ul style="margin:0;padding-left:18px">
+        <li><a href="./output/wordpress_posts.csv">wordpress_posts.csv</a></li>
+        <li><a href="./output/pubmed_eppley.csv">pubmed_eppley.csv</a></li>
+        <li><a href="./output/crossref_works.csv">crossref_works.csv</a></li>
+        <li><a href="./output/openalex_works.csv">openalex_works.csv</a></li>
+        <li><a href="./output/clinical_trials.csv">clinical_trials.csv</a></li>
+        <li><a href="./output/orcid_profiles.csv">orcid_profiles.csv</a></li>
+        <li><a href="./output/orcid_works.csv">orcid_works.csv</a></li>
+        <li><a href="./output/youtube_all.csv">youtube_all.csv</a></li>
+      </ul>
+      <p class="note">Right-click → “Save link as…” to download a CSV. CSV links are stable.</p>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:14px">
+    <h3 style="margin:6px 0 8px">File details</h3>
+    <table id="files">
+      <thead>
+      <tr><th>File</th><th>Description</th><th>Rows</th><th>Status</th><th>Download</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
 
   <footer>
-    Right-click a CSV link → “Save link as…” to download directly. Updated by GitHub Actions (3 AM / 5 AM / 7 AM UTC).
+    Site URL: <a href="https://jasonab74-ctrl.github.io/eppley-collector/">https://jasonab74-ctrl.github.io/eppley-collector/</a>
   </footer>
+</div>
 
-  <script>
-    function fmt(n){return (n||0).toLocaleString('en-US');}
-    async function j(url){const r=await fetch(url+'?'+Date.now()); if(!r.ok) throw new Error(url+' → '+r.status); return r.json();}
+<script>
+(async () => {
+  // Files we expect
+  const files = [
+    ["wordpress_posts.csv","All blog/Q&A posts"],
+    ["pubmed_eppley.csv","PubMed summary"],
+    ["crossref_works.csv","Crossref works"],
+    ["openalex_works.csv","OpenAlex works"],
+    ["clinical_trials.csv","ClinicalTrials.gov"],
+    ["orcid_profiles.csv","ORCID profiles"],
+    ["orcid_works.csv","ORCID works"],
+    ["youtube_all.csv","YouTube metadata"]
+  ];
 
-    async function loadHealth(){
-      try{
-        const h = await j('output/health.json');
-        if(h && h.last_status && h.last_status.toLowerCase() !== 'ok'){
-          const b = document.getElementById('health');
-          b.style.display = 'block';
-        }
-      }catch(e){}
-    }
+  const base = location.pathname.replace(/\/[^\/]*$/, "") + "/output/";
+  const tbody = document.querySelector("#files tbody");
+  const chipData = document.getElementById("chip-data");
+  const chipUpd  = document.getElementById("chip-updated");
+  const kFiles = document.getElementById("k-files");
+  const kRows  = document.getElementById("k-rows");
+  const kWP    = document.getElementById("k-wp");
+  const kCR    = document.getElementById("k-cr");
 
-    async function loadWP(){
-      try{
-        const s = await j('output/wp_state.json');
-        const done = s.completed||0;
-        const rem  = (s.queue && s.queue.length) || 0;
-        const total = done + rem;
-        const pct = total ? Math.round((done/total)*100) : (done?100:0);
-        document.getElementById('wp-bar').style.width = pct+'%';
-        document.getElementById('wp-foot').textContent =
-          total ? `Completed: ${fmt(done)} • Remaining: ${fmt(rem)} • ${pct}% done`
-                : 'Waiting for first discovery run…';
-        document.getElementById('wp-overall').textContent =
-          total ? `Overall: ${fmt(done)} / ${fmt(total)} (${pct}%)`
-                : `Overall: —`;
-      }catch(e){
-        document.getElementById('wp-foot').textContent = 'No crawl state yet (first chunk pending).';
-        document.getElementById('wp-overall').textContent = 'Overall: —';
-      }
-    }
+  function row(name, desc, rows, ok) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="font-family:ui-monospace,Menlo,Consolas,monospace">${name}</td>
+      <td>${desc}</td>
+      <td>${rows >= 0 ? rows : "—"}</td>
+      <td>${ok ? '<span class="oktxt">ok</span>' : '<span class="badtxt">missing</span>'}</td>
+      <td><a href="./output/${name}">CSV</a></td>`;
+    tbody.appendChild(tr);
+  }
 
-    async function loadStatus(){
-      try{
-        const data = await j('output/status.json');
-        document.getElementById('meta').textContent =
-          `Generated: ${data.generated_at} UTC • Repo: ${data.repo}`;
-        const files = data.files||[];
-        const rowsTotal = files.reduce((a,f)=>a+(+f.rows||0),0);
-        const filesOk = files.filter(f=>f.exists).length + '/' + files.length;
-        document.getElementById('last-run').textContent = 'Last updated: ' + (data.generated_at||'—') + ' UTC';
-        document.getElementById('rows-total').textContent = 'Total rows: ' + fmt(rowsTotal);
-        document.getElementById('files-ok').textContent = 'Files: ' + filesOk;
+  async function countRows(url) {
+    try {
+      const r = await fetch(url, {cache:'no-store'});
+      if (!r.ok) return -1;
+      const text = await r.text();
+      if (!text) return 0;
+      // Count lines and subtract header (first line)
+      const lines = text.replace(/\r/g,'').split('\n').filter(Boolean);
+      return Math.max(0, lines.length - 1);
+    } catch { return -1; }
+  }
 
-        const html = `
-          <table>
-            <thead>
-              <tr>
-                <th>File</th>
-                <th>Description</th>
-                <th>Last Updated (UTC)</th>
-                <th>Size</th>
-                <th>Total Rows</th>
-                <th>New Rows</th>
-                <th>Links</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${files.map(r=>`
-                <tr>
-                  <td><code>${r.name}</code><div class="small">${r.exists?'✅ available':'❌ missing'}</div></td>
-                  <td>${r.label||''}</td>
-                  <td>${r.updated_at||''}</td>
-                  <td>${r.size_mb? r.size_mb+' MB':'—'}</td>
-                  <td>${r.rows? fmt(r.rows):'—'}</td>
-                  <td>${r.new_rows_since_last_run? '+'+fmt(r.new_rows_since_last_run):'0'}</td>
-                  <td>
-                    <a class="btn" href="${r.download_url}" target="_blank" rel="noopener">Download CSV</a>
-                    <a class="btn" href="${r.webpage_url}" target="_blank" rel="noopener">View on GitHub</a>
-                  </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>`;
-        document.getElementById('table').innerHTML = html;
-      }catch(e){
-        document.getElementById('table').innerHTML =
-          '<div style="padding:12px">status.json not yet available — run “Build Data Status” after the scraper commits, then refresh.</div>';
-      }
-    }
+  // Build table + KPIs
+  let totalRows = 0, present = 0, wpRows = 0, crRows = 0;
+  for (const [name, desc] of files) {
+    const rows = await countRows(base + name);
+    const ok = rows >= 0;
+    if (ok) present++;
+    if (rows > 0) totalRows += rows;
+    if (name === "wordpress_posts.csv") wpRows = Math.max(rows,0);
+    if (name === "crossref_works.csv")  crRows = Math.max(rows,0);
+    row(name, desc, rows, ok);
+  }
+  kFiles.textContent = `${present}/${files.length}`;
+  kRows.textContent  = totalRows.toLocaleString();
+  kWP.textContent    = wpRows.toLocaleString();
+  kCR.textContent    = crRows.toLocaleString();
 
-    function nextRunCountdown(){
-      const runsUTC = [3,5,7];
-      const now = new Date();
-      const utcHr = now.getUTCHours(), utcMin = now.getUTCMinutes();
-      let next = runsUTC.find(h=>h>utcHr);
-      let addDays = 0;
-      if(next === undefined){ next = runsUTC[0]; addDays = 1; }
-      const nextDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+addDays, next, 0, 0));
-      const ms = nextDate - now;
-      const h = Math.max(0, Math.floor(ms/3600000));
-      const m = Math.max(0, Math.floor((ms%3600000)/60000));
-      document.getElementById('next-run').textContent =
-        `Next scheduled run in ≈ ${h} h ${String(m).padStart(2,'0')} m (3 / 5 / 7 AM UTC schedule)`;
-    }
+  // Badges
+  const allOk = (present === files.length);
+  chipData.textContent = "Data: " + (allOk ? "ready" : "incomplete");
+  chipData.className = "chip " + (allOk ? "ok" : "bad");
 
-    loadHealth(); loadWP(); loadStatus(); nextRunCountdown();
-    setInterval(nextRunCountdown, 60000);
-  </script>
+  // Show last updated from Git metadata if available via Pages cache-buster
+  try {
+    // Lightweight heuristic: use the newest CSV’s Last-Modified header
+    const head = await fetch(base + "crossref_works.csv", {method:"HEAD", cache:"no-store"});
+    const lm = head.headers.get("last-modified");
+    chipUpd.textContent = "Last updated: " + (lm ? (new Date(lm)).toUTCString() : "—");
+    chipUpd.className = "chip";
+  } catch {
+    chipUpd.textContent = "Last updated: —";
+  }
+})();
+</script>
 </body>
 </html>
