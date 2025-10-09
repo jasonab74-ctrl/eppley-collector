@@ -3,109 +3,215 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dataset Status — Eppley Collector</title>
-  <meta name="color-scheme" content="light dark">
+  <title>Eppley Collector — Data Status</title>
+  <meta name="description" content="Live status for the Eppley Collector dataset. Client-side audit of CSV freshness, counts, and availability." />
   <style>
-    :root {
-      --bg:#0b0d10; --panel:#141820; --text:#e8eef5; --muted:#9fb1c4;
-      --ok:#2ecc71; --empty:#f1c40f; --miss:#e74c3c; --table-bd:#2b3648;
-      --chip:#273244; --chip-bd:#3a475c; --a:#4da3ff; --a-hover:#8bc0ff;
+    :root{
+      --bg:#0b0c10;--panel:#121318;--ink:#e9eef7;--muted:#a8b3c7;--brand:#53d3a1;
+      --good:#2ecc71;--warn:#f39c12;--bad:#e74c3c;--chip:#1c1f28;--table:#171923;--line:#222632;--link:#8bd8ff;
     }
-    @media (prefers-color-scheme: light) {
-      :root { --bg:#f7fafc; --panel:#fff; --text:#151a22; --muted:#475569; --table-bd:#e6edf5; --chip:#eef2f7; --chip-bd:#d6dee8; }
-    }
-    html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica Neue,Arial}
-    .wrap{max-width:900px;margin:0 auto;padding:28px 16px 64px}
-    h1{font-size:26px;margin:0 0 6px}
-    .chips{display:flex;gap:8px;flex-wrap:wrap}
-    .chip{border:1px solid var(--chip-bd);background:var(--chip);padding:4px 10px;border-radius:999px;font-size:12px}
-    .ok{color:var(--ok);border-color:var(--ok)}
-    .warn{color:var(--empty);border-color:var(--empty)}
-    .bad{color:var(--miss);border-color:var(--miss)}
-    table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--table-bd);border-radius:12px;overflow:hidden;margin-top:14px}
-    th,td{padding:10px 12px;border-bottom:1px solid var(--table-bd)}
-    th{text-align:left;color:var(--muted)}
-    tr:last-child td{border-bottom:0}
-    a{color:var(--a)} a:hover{color:var(--a-hover)}
+    html,body{background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0}
+    .wrap{max-width:1000px;margin:auto;padding:24px}
+    h1{margin:4px 0 6px;font-weight:800;letter-spacing:.2px}
+    p.lead{color:var(--muted);margin:0 0 16px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+    .chip{background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);font-weight:700}
+    .chip.ok{color:#0ddc86;background:rgba(13,220,134,.08);border-color:rgba(13,220,134,.28)}
+    .chip.warn{color:#ffb648;background:rgba(255,182,72,.08);border-color:rgba(255,182,72,.28)}
+    .chip.err{color:#ff6b6b;background:rgba(255,107,107,.08);border-color:rgba(255,107,107,.28)}
+    .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 16px}
+    .btn{background:#1f2430;border:1px solid var(--line);color:var(--ink);text-decoration:none;padding:8px 12px;border-radius:10px;font-weight:800}
+    .btn:hover{border-color:#3a4154}
+    .grid{display:grid;gap:16px}
+    @media(min-width:860px){.grid{grid-template-columns:1fr 1fr}}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+    .meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-weight:700}
+    .stat{display:flex;gap:8px;align-items:center;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+    .k{color:#9fb3d0}
+    table{width:100%;border-collapse:collapse;background:var(--table);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{color:#b9c7dc;text-align:left;font-weight:800;background:#141723;position:sticky;top:0}
+    td.small{color:var(--muted)}
+    td.num{text-align:right;white-space:nowrap}
+    a{color:var(--link);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .ok{color:var(--good)} .warn{color:var(--warn)} .err{color:var(--bad)}
+    .foot{color:var(--muted);margin-top:14px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Dataset Status</h1>
-  <div class="chips" id="chips" aria-live="polite">
-    <span class="chip">checking…</span>
+  <h1>Data Status</h1>
+  <p class="lead">Live, client-side audit of <span class="mono">/output/*.csv</span>: availability, row counts, and last-modified.</p>
+
+  <div class="chips" id="badges">
+    <span class="chip ok" id="overall">overall: checking…</span>
+    <span class="chip" id="lastUpdated">Last updated: …</span>
   </div>
 
-  <table id="t">
-    <thead>
-      <tr><th>File</th><th>Rows</th><th>Status</th></tr>
-    </thead>
-    <tbody id="tb"></tbody>
-  </table>
+  <div class="btnrow">
+    <a class="btn" href="index.html">Back to Index</a>
+    <a class="btn" href="https://github.com/jasonab74-ctrl/eppley-collector" target="_blank" rel="noopener">View Repo</a>
+    <a class="btn" href="https://github.com/jasonab74-ctrl/eppley-collector/actions" target="_blank" rel="noopener">GitHub Actions</a>
+  </div>
 
-  <p style="margin-top:14px">
-    Back to <a href="./">main page</a>
-  </p>
+  <div class="grid" style="margin-top:8px">
+    <div class="card">
+      <h3>Summary</h3>
+      <div class="meta" style="margin-top:8px">
+        <div class="stat"><span class="k">Files present</span> <span id="filesPresent">0</span></div>
+        <div class="stat"><span class="k">Total rows</span> <span id="totalRows">0</span></div>
+        <div class="stat"><span class="k">Issues</span> <span id="issueCount">0</span></div>
+      </div>
+      <p class="foot">Status logic: <span class="ok">ok</span> = loads & meets threshold; <span class="warn">warn</span> = loads but thin; <span class="err">error</span> = fetch failed.</p>
+    </div>
+
+    <div class="card">
+      <h3>Notes</h3>
+      <ul style="margin:10px 0 0 18px;line-height:1.6">
+        <li>Counts come from client-side CSV line counts; no server involved.</li>
+        <li>“Last updated” is read from the CSV’s <span class="mono">Last-Modified</span> header (UTC).</li>
+        <li>Thresholds are conservative and only used to flag obvious gaps.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>Per-file checks</h3>
+    <table id="files">
+      <thead>
+        <tr>
+          <th style="width:30%">File</th>
+          <th>Description</th>
+          <th style="width:12%">Rows</th>
+          <th style="width:18%">Last modified (UTC)</th>
+          <th style="width:12%">Status</th>
+          <th style="width:10%">CSV</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="foot">Site base: <a id="siteUrl" href="#" target="_blank" rel="noopener"></a></p>
+  </div>
 </div>
 
 <script>
-(() => {
-  const FILES = [
-    "wordpress_posts.csv",
-    "pubmed_eppley.csv",
-    "crossref_works.csv",
-    "openalex_works.csv",
-    "clinical_trials.csv",
-    "orcid_profiles.csv",
-    "orcid_works.csv",
-    "youtube_all.csv",
-  ];
-  const qb = () => `?v=${Date.now()}`;
-  const tb = document.querySelector("#tb");
-  const chips = document.querySelector("#chips");
+// ---- Configuration ---------------------------------------------------------
+const FILES = [
+  { name:"wordpress_posts.csv", desc:"All blog & Q&A posts with extracted content.", min: 120 },
+  { name:"pubmed_eppley.csv",  desc:"PubMed summary for Eppley-authored papers.",   min: 150 },
+  { name:"crossref_works.csv", desc:"Crossref works and DOIs.",                     min: 1200 },
+  { name:"openalex_works.csv", desc:"OpenAlex works (IDs, venues, concepts).",      min: 0 },
+  { name:"clinical_trials.csv",desc:"ClinicalTrials.gov matches (NCT IDs).",        min: 0 },
+  { name:"orcid_profiles.csv", desc:"ORCID profile snapshots.",                      min: 1 },
+  { name:"orcid_works.csv",    desc:"ORCID works (titles, years, IDs).",            min: 0 },
+  { name:"youtube_all.csv",    desc:"YouTube videos/metadata referencing Eppley.",  min: 50 }
+];
 
-  function addChip(text, cls){ const s=document.createElement("span"); s.className=`chip ${cls||""}`; s.textContent=text; chips.appendChild(s); }
+// base path resolution (supports root or /docs hosting)
+const base = location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/[^/]+$/, '');
+const siteRoot = location.origin + base.replace(/\/docs\/?$/, '/');
+const outputBase = siteRoot + 'output/';
+document.getElementById('siteUrl').textContent = siteRoot;
+document.getElementById('siteUrl').href = siteRoot;
 
-  async function probe(name){
-    const url = `output/${name}${qb()}`;
-    try{
-      const h = await fetch(url,{method:"HEAD",cache:"no-store"});
-      if(!h.ok) throw new Error(`HEAD ${h.status}`);
-      const r = await fetch(url,{cache:"no-store"});
-      if(!r.ok) throw new Error(`GET ${r.status}`);
-      const txt = await r.text();
-      const lines = txt.replace(/\r/g,"").split("\n").filter((l,i,a)=>!(i===a.length-1 && l.trim()===""));
-      const headerLikely = lines[0]?.includes(",") ?? false;
-      const rows = Math.max(0, lines.length - (headerLikely ? 1 : 0));
-      const status = rows>0 ? "ok" : "empty";
-      const tr=document.createElement("tr");
-      tr.innerHTML = `<td><a href="output/${name}">${name}</a></td>
-                      <td>${rows.toLocaleString()}</td>
-                      <td class="${status==='ok'?'ok':'warn'}"><strong>${status}</strong></td>`;
-      tb.appendChild(tr);
-      return {name, rows, status};
-    }catch(e){
-      const tr=document.createElement("tr");
-      tr.innerHTML = `<td><a href="output/${name}">${name}</a></td>
-                      <td>—</td>
-                      <td class="bad"><strong>missing</strong></td>`;
-      tb.appendChild(tr);
-      return {name, rows:0, status:"missing"};
+// ---- Helpers ---------------------------------------------------------------
+async function fetchLastModified(url){
+  try{
+    const r = await fetch(url, { method:'HEAD', cache:'no-store' });
+    if(!r.ok) return '';
+    return r.headers.get('last-modified') || '';
+  }catch{return '';}
+}
+
+async function countCsvRows(url){
+  try{
+    const r = await fetch(url, { cache:'no-store' });
+    if(!r.ok) return { ok:false, rows:0, status:`${r.status}`, last:'' };
+    const txt = await r.text();
+    const lines = txt.split(/\r?\n/).filter(Boolean);
+    const rows = Math.max(0, lines.length - 1);
+    const last = (r.headers.get('last-modified') || '');
+    return { ok:true, rows, status:'ok', last };
+  }catch(e){
+    return { ok:false, rows:0, status:'error', last:'' };
+  }
+}
+
+function fmtUTC(s){
+  if(!s) return '—';
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? '—' : d.toUTCString().replace('GMT','UTC');
+}
+
+// ---- Render table ----------------------------------------------------------
+const tbody = document.querySelector('#files tbody');
+FILES.forEach(f=>{
+  const tr = document.createElement('tr');
+  const href = outputBase + f.name;
+  tr.innerHTML = `
+    <td><a href="${href}" target="_blank" rel="noopener">${f.name}</a></td>
+    <td class="small">${f.desc}</td>
+    <td class="num" data-rows>…</td>
+    <td data-last>…</td>
+    <td data-status>checking…</td>
+    <td class="num"><a href="${href}" target="_blank" rel="noopener">CSV</a></td>
+  `;
+  tbody.appendChild(tr);
+});
+
+// ---- Audit all files -------------------------------------------------------
+(async () => {
+  const rowsCells = document.querySelectorAll('[data-rows]');
+  const lastCells = document.querySelectorAll('[data-last]');
+  const statusCells = document.querySelectorAll('[data-status]');
+  let totalRows = 0, present = 0, issues = 0, newest = 0;
+
+  for(let i=0;i<FILES.length;i++){
+    const f = FILES[i];
+    const url = outputBase + f.name;
+    const { ok, rows, status, last } = await countCsvRows(url);
+
+    rowsCells[i].textContent = ok ? rows.toLocaleString() : '0';
+    lastCells[i].textContent = fmtUTC(last);
+
+    if(ok){
+      present++;
+      totalRows += rows;
+      const t = last ? Date.parse(last) : 0;
+      newest = Math.max(newest, t);
+
+      // status by threshold
+      if(rows >= f.min){
+        statusCells[i].innerHTML = `<span class="ok">ok</span>`;
+      }else{
+        statusCells[i].innerHTML = `<span class="warn">warn</span>`;
+        issues++;
+      }
+    }else{
+      statusCells[i].innerHTML = `<span class="err">${status==='404'?'missing':'error'}</span>`;
+      issues++;
     }
   }
 
-  (async function(){
-    chips.innerHTML = "";
-    const results = [];
-    for (const f of FILES) results.push(await probe(f));
-    const ok = results.filter(r=>r.status==='ok').length;
-    const empty = results.filter(r=>r.status==='empty').length;
-    const miss = results.filter(r=>r.status==='missing').length;
+  // Top summary
+  document.getElementById('filesPresent').textContent = `${present}/${FILES.length}`;
+  document.getElementById('totalRows').textContent = totalRows.toLocaleString();
+  document.getElementById('issueCount').textContent = issues;
 
-    if (miss>0) addChip(`missing ${miss}`, "bad");
-    if (empty>0) addChip(`empty ${empty}`, "warn");
-    addChip(`ok ${ok}`, "ok");
-  })();
+  const lastBadge = document.getElementById('lastUpdated');
+  lastBadge.textContent = `Last updated: ${newest ? new Date(newest).toUTCString().replace('GMT','UTC') : '—'}`;
+
+  const overall = document.getElementById('overall');
+  if(issues === 0){
+    overall.classList.add('ok');
+    overall.textContent = 'overall: passing';
+  }else{
+    overall.classList.remove('ok');
+    overall.classList.add(issues > 0 && present > 0 ? 'warn' : 'err');
+    overall.textContent = issues > 0 && present > 0 ? 'overall: warnings' : 'overall: failing';
+  }
 })();
 </script>
 </body>
