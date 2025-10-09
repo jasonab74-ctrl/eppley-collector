@@ -2,22 +2,19 @@ name: Run Eppley Scraper
 
 on:
   workflow_dispatch:
-  # 3 / 5 / 7 AM UTC (as shown on your site)
   schedule:
-    - cron: '0 3,5,7 * * *'
+    - cron: "0 3,5,7 * * *"  # every few hours UTC
 
 permissions:
-  contents: write   # allow this job to push CSV updates
+  contents: write
 
 concurrency:
-  group: eppley-scraper
-  cancel-in-progress: false
+  group: run-scraper
+  cancel-in-progress: true
 
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,45 +24,29 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install -U pip
           pip install -r requirements.txt
+          pip install yt-dlp==2024.08.06
 
       - name: Run scraper
-        env:
-          PYTHONUNBUFFERED: '1'
         run: |
-          python main.py
+          set -e
+          python main.py --only all
 
-      # ---- FIXED COMMIT STEP (rebase + retry) ----
-      - name: Commit results
+      - name: Commit results (safe rebase)
         run: |
           set -e
           git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
-          # sync with the latest main to avoid "fetch first" rejections
-          git fetch origin main
-          git checkout main
-          git pull --rebase origin main
-
-          git add -A
+          git config --global user.email "actions@users.noreply.github.com"
+          git pull --rebase --autostash origin main || true
+          git add -A output
           if git diff --cached --quiet; then
             echo "No changes to commit."
-            exit 0
+          else
+            git commit -m "[auto] Update scraped data $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            git push origin HEAD:main
           fi
-          git commit -m "Auto-update scraped data $(date -u '+%Y-%m-%d %H:%M:%S')"
-
-          # push; if rejected (race), rebase once more and push again
-          git push origin main || (git pull --rebase origin main && git push origin main)
