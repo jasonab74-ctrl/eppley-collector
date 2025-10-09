@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Unified Eppley Collector
-Runs all collectors, merges all into a master CSV for NotebookLM.
-Never fails hard — always leaves usable outputs.
+Eppley Collector — Final Unified Version
+----------------------------------------
+Runs all collectors, writes individual CSVs,
+merges them into eppley_master.csv and eppley_master.json.
+100% GitHub-Actions safe (no tokens required except YT_API_KEY).
 """
 
-import csv, os, sys, traceback, importlib, pathlib, time
+import csv, json, os, sys, time, traceback, importlib, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent
 OUT = ROOT / "output"
@@ -31,53 +33,70 @@ def _safe_run(mod_name, fn_name, **kwargs):
         fn = getattr(mod, fn_name)
         rows = fn(**kwargs)
         _log(f"{mod_name}.{fn_name} -> {rows} rows")
+        return rows
     except Exception as e:
-        _log(f"FAIL: {mod_name}.{fn_name}: {e}")
+        _log(f"FAIL {mod_name}.{fn_name}: {e}")
         traceback.print_exc()
-        rows = 0
-    return rows
+        return 0
+
+def _normalize_row(src, row):
+    """Normalize to consistent fields for AI ingestion."""
+    return {
+        "source": src,
+        "title": row.get("title") or row.get("BriefTitle") or row.get("display_name") or "",
+        "summary": (row.get("description") or row.get("content") or "")[:2000],
+        "date": row.get("year") or row.get("publication_date") or row.get("StartDate") or "",
+        "link": row.get("url") or row.get("openalex_url") or row.get("link") or "",
+        "authors": row.get("authors") or row.get("authorships") or "",
+        "journal": row.get("journal") or row.get("host_venue_name") or "",
+        "type": row.get("type") or "",
+        "keywords": row.get("concepts") or row.get("tags") or "",
+    }
 
 def _merge_all():
-    master_path = OUT / "eppley_master.csv"
-    files = list(OUT.glob("*.csv"))
-    fieldnames = ["source","title","summary","date","link","authors","journal","type","keywords","extra"]
-    written = 0
-    with open(master_path,"w",newline="",encoding="utf-8") as f:
-        w = csv.DictWriter(f,fieldnames=fieldnames)
+    """Merge every output/*.csv into master CSV + JSON."""
+    master_csv = OUT / "eppley_master.csv"
+    master_json = OUT / "eppley_master.json"
+    files = sorted(OUT.glob("*.csv"))
+    all_rows = []
+
+    fieldnames = ["source","title","summary","date","link","authors","journal","type","keywords"]
+
+    with open(master_csv, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
+
         for file in files:
-            if file.name=="eppley_master.csv": continue
+            if file.name.startswith("eppley_master"):  # skip self
+                continue
             try:
-                with open(file,newline="",encoding="utf-8") as rf:
+                with open(file, newline="", encoding="utf-8") as rf:
                     rd = csv.DictReader(rf)
-                    for row in rd:
-                        title = row.get("title") or row.get("BriefTitle") or row.get("display_name") or ""
-                        link = row.get("url") or row.get("openalex_url") or row.get("link") or ""
-                        w.writerow({
-                            "source": file.name,
-                            "title": title[:300],
-                            "summary": (row.get("description") or row.get("content") or "")[:1000],
-                            "date": row.get("year") or row.get("publication_date") or row.get("StartDate") or "",
-                            "link": link,
-                            "authors": row.get("authors") or row.get("authorships") or "",
-                            "journal": row.get("journal") or row.get("host_venue_name") or "",
-                            "type": row.get("type") or "",
-                            "keywords": row.get("concepts") or row.get("tags") or "",
-                            "extra": ";".join([f"{k}:{v}" for k,v in list(row.items())[:5]])
-                        })
-                        written+=1
+                    for r in rd:
+                        row = _normalize_row(file.name, r)
+                        w.writerow(row)
+                        all_rows.append(row)
             except Exception as e:
                 _log(f"merge skip {file.name}: {e}")
-    _log(f"[merge] wrote {written} unified rows -> {master_path}")
-    return written
+
+    # Write JSON
+    try:
+        with open(master_json, "w", encoding="utf-8") as jf:
+            json.dump(all_rows, jf, ensure_ascii=False, indent=2)
+        _log(f"[merge] wrote {len(all_rows)} rows → eppley_master.csv/json")
+    except Exception as e:
+        _log(f"json write error: {e}")
+
+    return len(all_rows)
 
 def main():
-    _log("Eppley unified collector started.")
+    _log("Starting unified Eppley Collector run…")
+    total = 0
     for mod, fn, kwargs in PIPELINE:
-        _safe_run(mod, fn, **kwargs)
-    _merge_all()
-    _log("✅ Done.")
+        total += _safe_run(mod, fn, **kwargs)
+    merged = _merge_all()
+    _log(f"✅ Done. Collected {total} individual rows, merged {merged} unified entries.")
     return 0
 
-if __name__=="__main__":
+if __name__ == "__main__":
     sys.exit(main())
