@@ -1,0 +1,53 @@
+name: Run Eppley Scraper
+
+on:
+  schedule:
+    - cron: "0 3 * * *"     # every night at 03:00 UTC
+  workflow_dispatch:        # manual run button
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 420    # allow up to 7 hours if needed (first sync)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: pip install -r requirements.txt
+
+      # ---- WordPress in a manageable chunk (resumes nightly) ----
+      - name: Crawl WordPress chunk
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python main.py --only wp --wp-max 1200 --save-every 200 --delay 3.0
+
+      # ---- PubMed & YouTube are quick compared to WP ----
+      - name: Fetch PubMed
+        run: python main.py --only pubmed
+
+      - name: Fetch YouTube metadata
+        run: python main.py --only yt
+
+      - name: Commit results
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/
+          git commit -m "Auto-update scraped data $(date)" || echo "No changes to commit"
+          git push
+
+      # If anything fails mid-run, keep partial CSVs as an artifact
+      - name: Upload partial output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: partial-output
+          path: output/**
