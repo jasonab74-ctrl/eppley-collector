@@ -1,0 +1,67 @@
+{
+  "generated_at": "2025-10-09T14:13:18+00:00",
+  "results": [
+    {
+      "file": "wordpress_posts.csv",
+      "exists": true,
+      "rows": 0,
+      "min_expected": 1,
+      "ok": false
+    },
+    {
+      "file": "pubmed_eppley.csv",
+      "exists": true,
+      "rows": 186,
+      "min_expected": 1,
+      "ok": true
+    },
+    {
+      "file": "crossref_works.csv",
+      "exists": true,
+      "rows": 3567,
+      "min_expected": 0,
+      "ok": true
+    },
+    {
+      "file": "openalex_works.csv",
+      "exists": true,
+      "rows": 0,
+      "min_expected": 0,
+      "ok": true
+    },
+    {
+      "file": "clinical_trials.csv",
+      "exists": false,
+      "rows": -1,
+      "min_expected": 0,
+      "ok": false
+    },
+    {
+      "file": "orcid_profiles.csv",
+      "exists": true,
+      "rows": 150,
+      "min_expected": 0,
+      "ok": true
+    },
+    {
+      "file": "orcid_works.csv",
+      "exists": true,
+      "rows": 3572,
+      "min_expected": 0,
+      "ok": true
+    },
+    {
+      "file": "youtube_all.csv",
+      "exists": true,
+      "rows": 1,
+      "min_expected": 0,
+      "ok": true
+    }
+  ],
+  "summary": {
+    "ok": false,
+    "missing": 1,
+    "too_small": 1,
+    "total": 8
+  }
+}
