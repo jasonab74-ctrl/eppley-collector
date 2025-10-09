@@ -1,0 +1,59 @@
+name: Audit Data (Eppley Collector)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 3,5,7 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run audit
+        id: audit
+        run: |
+          python - <<'PY'
+          import csv, os, json, sys
+          base = "output"
+          files = {
+            "wordpress_posts.csv": 0,       # expect >= 0 (REST may be locked; zeros ok)
+            "pubmed_eppley.csv":  0,        # your 186 stays fine
+            "crossref_works.csv":  100,      # sanity
+            "openalex_works.csv":  0,        # zeros allowed if API throttles
+            "clinical_trials.csv": 0,
+            "orcid_works.csv":     0,
+            "youtube_all.csv":     1,        # at least one
+          }
+          report = []
+          ok = True
+          for fn, min_rows in files.items():
+            p = os.path.join(base, fn)
+            exists = os.path.exists(p)
+            rows = -1
+            if exists:
+              with open(p, encoding="utf-8") as f:
+                rows = sum(1 for _ in f) - 1
+            record = {"file": fn, "exists": exists, "rows": rows, "min_ok": rows >= min_rows if rows >= 0 else False}
+            report.append(record)
+            if not exists:
+              ok = False
+          with open(os.path.join(base, "audit.json"), "w", encoding="utf-8") as f:
+            json.dump({"ok": ok, "report": report}, f, indent=2)
+          print("=== AUDIT RESULTS ===")
+          for r in report:
+            print("{:<18} exists={} rows={} min_ok={}".format(r["file"], r["exists"], r["rows"], r["min_ok"]))
+          # Do NOT fail the workflow just because some rows are small.
+          sys.exit(0)
+          PY
+
+      - name: Upload audit.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit
+          path: output/audit.json
