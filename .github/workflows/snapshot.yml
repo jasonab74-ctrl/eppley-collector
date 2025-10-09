@@ -1,0 +1,31 @@
+name: Nightly Snapshot (ZIP all output)
+
+on:
+  schedule:
+    - cron: "30 7 * * *"  # after the 3 runs + status
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make ZIP
+        run: |
+          mkdir -p dist
+          zip -r dist/eppley-data-$(date -u +'%Y%m%d').zip output
+
+      - name: Create/Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly data snapshot
+          files: dist/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
