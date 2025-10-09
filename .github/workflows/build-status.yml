@@ -25,21 +25,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Generate output/status.json
+      - name: Generate output/status.json (auto-discover CSVs)
         run: |
           python - <<'PY'
-          import os, csv, json
+          import os, csv, json, glob
           from datetime import datetime, timezone
-
-          files = [
-              ("wordpress_posts.csv", "All blog+Q&A posts"),
-              ("pubmed_eppley.csv",   "Publications (PubMed)"),
-              ("youtube_metadata.csv","YouTube metadata")
-          ]
 
           def raw_url(path):
               return f"https://raw.githubusercontent.com/${{ github.repository }}/main/{path}"
-
           def blob_url(path):
               return f"https://github.com/${{ github.repository }}/blob/main/{path}"
 
@@ -47,23 +40,30 @@ jobs:
           prev = {}
           if os.path.exists(status_path):
               try:
-                  with open(status_path, "r", encoding="utf-8") as f:
-                      prev = json.load(f)
-              except Exception:
-                  prev = {}
-
-          updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-          rows_out = []
+                  with open(status_path,"r",encoding="utf-8") as f: prev = json.load(f)
+              except Exception: prev = {}
           prev_map = { (r.get("name") or r.get("path")): r for r in prev.get("files", []) } if isinstance(prev, dict) else {}
 
-          for fname, label in files:
-              path = f"output/{fname}"
+          files = sorted(glob.glob("output/*.csv"))
+          label_map = {
+              "wordpress_posts.csv":"All blog+Q&A posts",
+              "pubmed_eppley.csv":"Publications (PubMed)",
+              "youtube_metadata.csv":"YouTube metadata",
+              "crossref_works.csv":"Publications (Crossref)",
+              "openalex_works.csv":"Publications & metrics (OpenAlex)",
+              "clinical_trials.csv":"ClinicalTrials.gov studies",
+              "orcid_profiles.csv":"ORCID profiles",
+              "orcid_works.csv":"ORCID public works",
+          }
+
+          rows_out = []
+          updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+          for path in files:
+              name = os.path.basename(path)
               entry = {
-                  "name": fname, "label": label, "path": path,
-                  "exists": os.path.exists(path),
-                  "updated_at": updated_at,
-                  "size_bytes": 0, "size_mb": 0.0,
+                  "name": name, "label": label_map.get(name, "Data"),
+                  "path": path, "exists": os.path.exists(path),
+                  "updated_at": updated_at, "size_bytes": 0, "size_mb": 0.0,
                   "rows": 0, "new_rows_since_last_run": 0,
                   "raw_url": raw_url(path), "webpage_url": blob_url(path), "download_url": raw_url(path)
               }
@@ -71,16 +71,16 @@ jobs:
                   entry["size_bytes"] = os.path.getsize(path)
                   entry["size_mb"] = round(entry["size_bytes"]/(1024*1024),3)
                   try:
-                      with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                      with open(path,"r",encoding="utf-8",errors="ignore") as f:
                           reader = csv.reader(f); rows = list(reader)
                           if rows:
                               header = rows[0]
-                              if any(h.strip().lower() in ("title","pmid","url","date","abstract","videoid") for h in header):
-                                  rows = rows[1:]
+                              # skip header
+                              rows = rows[1:] if header else rows
                               entry["rows"] = len(rows)
                   except Exception:
                       pass
-                  prior = prev_map.get(fname) or prev_map.get(path) or {}
+                  prior = prev_map.get(name) or prev_map.get(path) or {}
                   try:
                       entry["new_rows_since_last_run"] = max(0, entry["rows"] - int(prior.get("rows", 0)))
                   except Exception:
@@ -90,8 +90,7 @@ jobs:
 
           out = { "repo": "${{ github.repository }}", "generated_at": updated_at, "files": rows_out }
           os.makedirs("output", exist_ok=True)
-          with open(status_path, "w", encoding="utf-8") as f:
-              json.dump(out, f, ensure_ascii=False, indent=2)
+          with open(status_path,"w",encoding="utf-8") as f: json.dump(out, f, ensure_ascii=False, indent=2)
           print(json.dumps(out, indent=2))
           PY
 
@@ -100,5 +99,5 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add output/status.json
-          git commit -m "Update data status" || echo "No changes to commit"
+          git commit -m "Update data status" || echo "No changes"
           git push
