@@ -79,29 +79,24 @@
   </header>
 
   <main>
-    <!-- live workflow badges -->
     <div class="badges">
       <img alt="Scraper status" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/run-scraper.yml?branch=main&label=Scraper">
       <img alt="Status builder" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/build-status.yml?branch=main&label=Data%20Status">
     </div>
 
-    <!-- health banner -->
     <div id="health" class="health">Recent workflow failed. Data may be stale. Check GitHub Actions for details.</div>
 
-    <!-- top controls -->
     <div class="topbar">
       <a class="btn" href="https://github.com/jasonab74-ctrl/eppley-collector/releases/tag/nightly" target="_blank" rel="noopener">⬇︎ Download latest ZIP</a>
       <a class="btn" href="output/manifest.json" target="_blank" rel="noopener">☑︎ Checksums (manifest.json)</a>
     </div>
 
-    <!-- top stats -->
     <div class="statbar" id="top-stats">
       <span class="pill" id="last-run">Last updated: —</span>
       <span class="pill" id="rows-total">Total rows: —</span>
       <span class="pill" id="files-ok">Files: —</span>
     </div>
 
-    <!-- WP progress -->
     <section style="margin:8px 0 18px">
       <div class="small" id="wp-head">WordPress crawl progress</div>
       <div class="meter"><div class="bar" id="wp-bar"></div></div>
@@ -110,7 +105,6 @@
       <div class="small" id="next-run" style="margin-top:6px;color:#555;">Next scheduled run: —</div>
     </section>
 
-    <!-- status meta + table -->
     <div id="meta" class="small" style="margin-bottom:6px;"></div>
     <div class="table-wrap" id="table-wrap">
       <div id="table"></div>
@@ -204,7 +198,7 @@
     }
 
     function nextRunCountdown(){
-      const runsUTC = [3,5,7]; // schedule hours UTC
+      const runsUTC = [3,5,7];
       const now = new Date();
       const utcHr = now.getUTCHours(), utcMin = now.getUTCMinutes();
       let next = runsUTC.find(h=>h>utcHr);
