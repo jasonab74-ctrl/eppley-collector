@@ -1,14 +1,20 @@
-name: Run Eppley Scraper
+name: Run Eppley Scraper (Resumable, Chunked, Safe)
 
 on:
   schedule:
-    - cron: "0 3 * * *"     # every night at 03:00 UTC
-  workflow_dispatch:        # manual run button
+    - cron: "0 3 * * *"
+    - cron: "0 5 * * *"
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: eppley-scraper
+  cancel-in-progress: true
 
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-    timeout-minutes: 420    # allow up to 7 hours if needed (first sync)
+    timeout-minutes: 420
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,28 +29,45 @@ jobs:
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: pip install -r requirements.txt
 
-      # ---- WordPress in a manageable chunk (resumes nightly) ----
-      - name: Crawl WordPress chunk
-        env:
-          PYTHONUNBUFFERED: "1"
-        run: python main.py --only wp --wp-max 1200 --save-every 200 --delay 3.0
+      # --- small WP chunks, resume via output/wp_state.json ---
+      - name: WP chunk 1
+        env: { PYTHONUNBUFFERED: "1" }
+        run: python main.py --only wp --wp-max 600 --save-every 150 --delay 3.5
 
-      # ---- PubMed & YouTube are quick compared to WP ----
-      - name: Fetch PubMed
-        run: python main.py --only pubmed
-
-      - name: Fetch YouTube metadata
-        run: python main.py --only yt
-
-      - name: Commit results
+      - name: Commit after WP chunk 1
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add output/
-          git commit -m "Auto-update scraped data $(date)" || echo "No changes to commit"
+          git commit -m "WP chunk 1 $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes to commit"
           git push
 
-      # If anything fails mid-run, keep partial CSVs as an artifact
+      - name: WP chunk 2
+        env: { PYTHONUNBUFFERED: "1" }
+        run: python main.py --only wp --wp-max 600 --save-every 150 --delay 3.5
+
+      - name: Commit after WP chunk 2
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/
+          git commit -m "WP chunk 2 $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes to commit"
+          git push
+
+      - name: PubMed
+        run: python main.py --only pubmed
+
+      - name: YouTube metadata
+        run: python main.py --only yt
+
+      - name: Final commit
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/
+          git commit -m "Auto-update scraped data $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes to commit"
+          git push
+
       - name: Upload partial output on failure
         if: failure()
         uses: actions/upload-artifact@v4
