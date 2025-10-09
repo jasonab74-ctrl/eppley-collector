@@ -1,1 +1,1 @@
-nct_id,title,status,start,complete,updated,enrollment,country,intervention
+NCTId,BriefTitle,Condition,ConditionMeshTerm,InterventionName,InterventionType,LeadSponsorName,OverallStatus,StartDate,CompletionDate,PrimaryCompletionDate,StudyType,StudyFirstPostDate,LastUpdatePostDate,LocationCity,LocationCountry
