@@ -1,36 +1,41 @@
 #!/usr/bin/env python3
 """
-Eppley Collector — API-first, resumable, and stable.
+Eppley Collector — API-first, resumable, stable.
 
-Sources covered:
-  - WordPress (REST first, then sitemap, then HTML fallback)
-  - PubMed (E-utilities)
-  - YouTube metadata (yt-dlp --flat-playlist)
-  - Crossref (works metadata)
-  - OpenAlex (works + metrics)
-  - ClinicalTrials.gov v2 (studies)
-  - ORCID (profiles search + public works)
+Adds:
+  • Crossref cursor pagination (no 1000-row cap)
+  • Gentle UA rotation + robots.txt check for HTML fallback
+  • Same outputs, same flags, backwards compatible
 
-Outputs to ./output/ as CSV + JSONL per source.
-Designed to run safely on GitHub Actions with no secrets.
+Sources:
+  - WordPress (REST → sitemap → HTML)
+  - PubMed
+  - YouTube metadata
+  - Crossref (cursor paging)
+  - OpenAlex
+  - ClinicalTrials.gov v2
+  - ORCID
 
-Usage (CLI):
-  python main.py --only all
-  python main.py --only wp --wp-mode auto --wp-max 1200
+Outputs: ./output/*.csv + .jsonl + wp_state.json
 """
 
-import argparse, csv, json, os, re, time, pathlib, subprocess, requests
+import argparse, csv, json, os, re, time, pathlib, subprocess, requests, random
 from datetime import datetime, timezone
 from typing import Dict, List, Iterable, Optional
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 # ------------------------------ paths & constants ------------------------------
 OUTPUT = pathlib.Path("output"); OUTPUT.mkdir(parents=True, exist_ok=True)
 CONFIG = pathlib.Path("config.yaml")  # optional
-UA = "eppley-collector/3.0 (+github actions)"
 
-# CSVs
+UA_POOL = [
+    "eppley-collector/3.1 (+github actions)",
+    "Mozilla/5.0 (compatible; EppleyBot/3.1; +https://github.com)",
+    "curl/8.4.0 (Eppley Collector)"
+]
+def UA(): return random.choice(UA_POOL)
+
 WP_CSV   = OUTPUT / "wordpress_posts.csv"
 WP_JSONL = OUTPUT / "wordpress_posts.jsonl"
 WP_STATE = OUTPUT / "wp_state.json"
@@ -71,49 +76,51 @@ def write_csv(path: pathlib.Path, rows: List[Dict], fields: List[str], mode="w")
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, mode, encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
-        if mode == "w":
-            w.writeheader()
-        for r in rows:
-            w.writerow({k: r.get(k, "") for k in fields})
+        if mode == "w": w.writeheader()
+        for r in rows: w.writerow({k: r.get(k, "") for k in fields})
 
 def append_jsonl(path: pathlib.Path, rows: List[Dict]):
     if not rows: return
     with open(path, "a", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        for r in rows: f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+def req_get(url, params=None, headers=None, timeout=30):
+    h = {"User-Agent": UA(), **(headers or {})}
+    return requests.get(url, params=params, headers=h, timeout=timeout)
 
 def safe_get_json(url: str, params=None, headers=None, timeout=30, retries=3, backoff=2.0):
-    headers = {"User-Agent": UA, **(headers or {})}
     for i in range(retries):
         try:
-            r = requests.get(url, params=params, headers=headers, timeout=timeout)
-            if r.status_code == 200:
-                return r.json()
-            if r.status_code in (429, 500, 502, 503, 504):
-                time.sleep(backoff * (i + 1))
-                continue
-        except requests.RequestException:
-            time.sleep(backoff * (i + 1))
+            r = req_get(url, params=params, headers=headers, timeout=timeout)
+            if r.status_code == 200: return r.json()
+            if r.status_code in (429, 500, 502, 503, 504): time.sleep(backoff * (i + 1)); continue
+        except requests.RequestException: time.sleep(backoff * (i + 1))
     return None
 
 def safe_get_text(url: str, headers=None, timeout=30, retries=3, backoff=2.0):
-    headers = {"User-Agent": UA, **(headers or {})}
     for i in range(retries):
         try:
-            r = requests.get(url, headers=headers, timeout=timeout)
-            if r.status_code == 200:
-                return r.text
-            if r.status_code in (429, 500, 502, 503, 504):
-                time.sleep(backoff * (i + 1))
-                continue
-        except requests.RequestException:
-            time.sleep(backoff * (i + 1))
+            r = req_get(url, headers=headers, timeout=timeout)
+            if r.status_code == 200: return r.text
+            if r.status_code in (429, 500, 502, 503, 504): time.sleep(backoff * (i + 1)); continue
+        except requests.RequestException: time.sleep(backoff * (i + 1))
     return None
 
 def clean_html_to_text(html: str) -> str:
     if not html: return ""
     soup = BeautifulSoup(html, "html.parser")
     return soup.get_text(" ", strip=True)
+
+# ------------------------------ robots.txt (HTML fallback) ------------------------------
+def robots_allows(base: str, path: str="/"):
+    try:
+        from urllib.robotparser import RobotFileParser
+        rp = RobotFileParser()
+        rp.set_url(urljoin(base, "/robots.txt"))
+        rp.read()
+        return rp.can_fetch(UA(), urljoin(base, path))
+    except Exception:
+        return True
 
 # ------------------------------ WordPress (REST → sitemap → HTML) ------------------------------
 WP_FIELDS = ["url","title","date","modified","tags","body","collected_at","source_mode"]
@@ -124,8 +131,7 @@ def load_state() -> Dict:
         except Exception: pass
     return {"mode":"auto","visited":[], "queue":[], "rest_page":0, "completed":0, "last_save_at":None, "last_modified":{}}
 
-def save_state(s: Dict):
-    WP_STATE.write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
+def save_state(s: Dict): WP_STATE.write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def wp_rest_available(base: str) -> bool:
     j = safe_get_json(urljoin(base, "/wp-json/"))
@@ -133,10 +139,8 @@ def wp_rest_available(base: str) -> bool:
 
 def run_wp_rest(base: str, per_page: int, max_posts: int, save_every: int, state: Dict):
     page = state.get("rest_page", 0) + 1
-    collected = 0
-    batch = []
+    collected = 0; batch = []
     if not WP_CSV.exists(): write_csv(WP_CSV, [], WP_FIELDS, "w")
-
     while collected < max_posts:
         url = urljoin(base, f"/wp-json/wp/v2/posts?per_page={per_page}&page={page}&_fields=link,date,modified,title,content,tags,categories")
         j = safe_get_json(url, timeout=30)
@@ -152,16 +156,13 @@ def run_wp_rest(base: str, per_page: int, max_posts: int, save_every: int, state
                 "collected_at": utc_now(),
                 "source_mode": "rest"
             }
-            batch.append(row)
-            collected += 1
-            state["completed"] = state.get("completed",0) + 1
+            batch.append(row); collected += 1; state["completed"] = state.get("completed",0) + 1
             if len(batch) >= save_every:
                 write_csv(WP_CSV, batch, WP_FIELDS, "a"); append_jsonl(WP_JSONL, batch)
                 batch.clear(); state["last_save_at"] = utc_now(); state["rest_page"] = page; save_state(state)
             if collected >= max_posts: break
         page += 1
         if len(j) < per_page: break
-
     if batch:
         write_csv(WP_CSV, batch, WP_FIELDS, "a"); append_jsonl(WP_JSONL, batch)
         state["last_save_at"] = utc_now(); state["rest_page"] = page-1; save_state(state)
@@ -205,7 +206,6 @@ def run_wp_sitemap(base: str, delay: float, max_pages: int, save_every: int, sta
     if not queue:
         queue = list(iter_sitemap_post_urls(base)); state["queue"] = queue; save_state(state)
     if not WP_CSV.exists(): write_csv(WP_CSV, [], WP_FIELDS, "w")
-
     batch = []; processed = 0
     while queue and processed < max_pages:
         url = queue.pop(0)
@@ -218,7 +218,6 @@ def run_wp_sitemap(base: str, delay: float, max_pages: int, save_every: int, sta
             write_csv(WP_CSV, batch, WP_FIELDS, "a"); append_jsonl(WP_JSONL, batch)
             batch.clear(); state["last_save_at"] = utc_now(); state["visited"] = list(visited); state["queue"] = queue; save_state(state)
         time.sleep(delay)
-
     if batch: write_csv(WP_CSV, batch, WP_FIELDS, "a"); append_jsonl(WP_JSONL, batch)
     state["visited"] = list(visited); state["queue"] = queue; state["last_save_at"] = utc_now(); save_state(state)
 
@@ -226,6 +225,7 @@ def discover_html_archive(base: str) -> List[str]:
     seeds = [base.rstrip("/") + "/your-questions", base.rstrip("/") + "/", base.rstrip("/") + "/category/", base.rstrip("/") + "/tag/"]
     out = set()
     for s in seeds:
+        if not robots_allows(base, s.replace(base,"/")): continue
         txt = safe_get_text(s); 
         if not txt: continue
         soup = BeautifulSoup(txt, "html.parser")
@@ -241,30 +241,18 @@ def run_wp_html(base: str, delay: float, max_pages: int, save_every: int, state:
     if not queue:
         queue = discover_html_archive(base); state["queue"] = queue; save_state(state)
     if not WP_CSV.exists(): write_csv(WP_CSV, [], WP_FIELDS, "w")
-
     batch = []; processed = 0
     while queue and processed < max_pages:
         url = queue.pop(0)
         if url in visited: continue
         visited.add(url)
-        if re.search(r"/page/\d+|category|tag|your-questions|exploreplasticsurgery", url, re.I):
-            txt = safe_get_text(url)
-            if txt:
-                soup = BeautifulSoup(txt, "html.parser")
-                for a in soup.find_all("a", href=True):
-                    href = a["href"]
-                    if re.search(r"/20\d{2}/\d{2}/", href) or "your-questions" in href:
-                        if href not in visited: queue.append(href)
-        else:
-            row = extract_post_html(url, state)
-            if row: batch.append(row)
-
+        row = extract_post_html(url, state)
+        if row: batch.append(row)
         processed += 1; state["completed"] = state.get("completed",0) + 1
         if len(batch) >= save_every:
             write_csv(WP_CSV, batch, WP_FIELDS, "a"); append_jsonl(WP_JSONL, batch)
             batch.clear(); state["last_save_at"] = utc_now(); state["visited"] = list(visited); state["queue"] = queue; save_state(state)
         time.sleep(delay)
-
     if batch: write_csv(WP_CSV, batch, WP_FIELDS, "a"); append_jsonl(WP_JSONL, batch)
     state["visited"] = list(visited); state["queue"] = queue; state["last_save_at"] = utc_now(); save_state(state)
 
@@ -332,39 +320,46 @@ def run_youtube(config: Dict):
     append_jsonl(YT_JSONL, rows)
     print(f"[yt] wrote {len(rows)} rows")
 
-# ------------------------------ Crossref ------------------------------
+# ------------------------------ Crossref (cursor paging) ------------------------------
 def run_crossref(config: Dict):
     names = config.get("names") or ["Barry L. Eppley","Barry Eppley","Eppley BL"]
     rows = []
     for name in names:
-        url = "https://api.crossref.org/works"
-        params = {"query.author": name, "rows": 1000}
-        j = safe_get_json(url, params=params)
-        items = ((j or {}).get("message", {}) or {}).get("items", []) or []
-        for it in items:
-            authors = ", ".join([" ".join([p for p in [a.get("given"), a.get("family")] if p]) for a in it.get("author",[])]) if it.get("author") else ""
-            year = ""
-            for k in ("published-print","published-online","issued"):
-                if it.get(k) and it[k].get("date-parts"):
-                    year = str(it[k]["date-parts"][0][0]); break
-            rows.append({
-                "doi": it.get("DOI",""),
-                "title": (it.get("title") or [""])[0],
-                "container": it.get("container-title", [""])[0],
-                "type": it.get("type",""),
-                "year": year,
-                "url": it.get("URL",""),
-                "authors": authors,
-                "source":"crossref",
-                "collected_at": utc_now()
-            })
+        cursor = "*"
+        while True:
+            url = "https://api.crossref.org/works"
+            params = {"query.author": name, "rows": 200, "cursor": cursor, "cursor_max": 10000}
+            j = safe_get_json(url, params=params, headers={"Accept":"application/json"})
+            if not j: break
+            msg = j.get("message", {}) or {}
+            items = msg.get("items", []) or []
+            for it in items:
+                authors = ", ".join([" ".join([p for p in [a.get("given"), a.get("family")] if p]) for a in it.get("author",[])]) if it.get("author") else ""
+                year = ""
+                for k in ("published-print","published-online","issued"):
+                    if it.get(k) and it[k].get("date-parts"):
+                        year = str(it[k]["date-parts"][0][0]); break
+                rows.append({
+                    "doi": it.get("DOI",""),
+                    "title": (it.get("title") or [""])[0],
+                    "container": it.get("container-title", [""])[0],
+                    "type": it.get("type",""),
+                    "year": year,
+                    "url": it.get("URL",""),
+                    "authors": authors,
+                    "source":"crossref",
+                    "collected_at": utc_now()
+                })
+            nxt = msg.get("next-cursor")
+            if not nxt or not items: break
+            cursor = nxt
+            time.sleep(0.3)  # be polite
     fields = ["doi","title","container","type","year","url","authors","source","collected_at"]
     write_csv(CR_CSV, rows, fields, "w"); append_jsonl(CR_JSONL, rows)
     print(f"[crossref] wrote {len(rows)} rows")
 
 # ------------------------------ OpenAlex ------------------------------
 def run_openalex(config: Dict):
-    # prefer author_ids if provided; else use search
     author_ids = config.get("openalex_author_ids") or []
     names = config.get("names") or ["Barry L. Eppley","Barry Eppley","Eppley BL"]
     rows = []
@@ -392,6 +387,7 @@ def run_openalex(config: Dict):
                         "collected_at": utc_now()
                     })
                 url = j.get("meta",{}).get("next_url")
+                time.sleep(0.2)
     else:
         for name in names:
             url = f"{base}?search={requests.utils.quote(name)}&per-page=200"
@@ -413,6 +409,7 @@ def run_openalex(config: Dict):
                         "collected_at": utc_now()
                     })
                 url = j.get("meta",{}).get("next_url")
+                time.sleep(0.2)
     fields = ["id","doi","title","publication_year","venue","type","cited_by_count","open_access","url","source","collected_at"]
     write_csv(OA_CSV, rows, fields, "w"); append_jsonl(OA_JSONL, rows)
     print(f"[openalex] wrote {len(rows)} rows")
@@ -459,14 +456,14 @@ def run_clinicaltrials(config: Dict):
     write_csv(CT_CSV, rows, fields, "w"); append_jsonl(CT_JSONL, rows)
     print(f"[clinicaltrials] wrote {len(rows)} rows")
 
-# ------------------------------ ORCID (public) ------------------------------
+# ------------------------------ ORCID ------------------------------
 def run_orcid(config: Dict):
-    # Search for likely profiles
     names = config.get("names") or ["Barry L. Eppley","Barry Eppley","Eppley BL"]
     prof_rows, works_rows = [], []
     headers = {"Accept":"application/json"}
     for name in names:
-        q = f'given-names:"{name.split()[0]}" AND family-name:"{name.split()[-1]}"'
+        parts = name.split()
+        q = f'given-names:"{parts[0]}" AND family-name:"{parts[-1]}"'
         url = f"https://pub.orcid.org/v3.0/expanded-search/?q={requests.utils.quote(q)}&rows=50"
         j = safe_get_json(url, headers=headers)
         for item in (j or {}).get("expanded-result", []) or []:
@@ -480,7 +477,6 @@ def run_orcid(config: Dict):
                 "keywords": ", ".join(item.get("keywords",[]) or []),
                 "collected_at": utc_now()
             })
-            # Try to fetch public works for each matched ORCID
             if orcid:
                 wurl = f"https://pub.orcid.org/v3.0/{orcid}/works"
                 jw = safe_get_json(wurl, headers=headers)
@@ -509,32 +505,26 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", choices=["wp","pubmed","yt","crossref","openalex","ct","orcid","all"], default="all")
     ap.add_argument("--wp-mode", choices=["auto","rest","sitemap","html"], default="auto")
-    ap.add_argument("--per-page", type=int, default=100, help="WordPress REST page size (1..100)")
-    ap.add_argument("--wp-max", type=int, default=1000, help="max WP posts/pages this run")
-    ap.add_argument("--save-every", type=int, default=200, help="flush every N posts")
-    ap.add_argument("--delay", type=float, default=3.0, help="delay for HTML mode (s)")
+    ap.add_argument("--per-page", type=int, default=100)
+    ap.add_argument("--wp-max", type=int, default=1000)
+    ap.add_argument("--save-every", type=int, default=200)
+    ap.add_argument("--delay", type=float, default=3.0)
     args = ap.parse_args()
 
     cfg = load_yaml_config(CONFIG)
     base = cfg.get("wordpress_base") or "https://exploreplasticsurgery.com"
 
-    # WP resume state
     state = load_state()
 
-    if args.only in ("wp","all"):
-        run_wp(args.wp_mode, base, max(1,min(args.per_page,100)), args.wp_max, args.save_every, args.delay, state)
+    if args.only in ("wp","all"):        run_wp(args.wp_mode, base, max(1,min(args.per_page,100)), args.wp_max, args.save_every, args.delay, state)
+    if args.only in ("pubmed","all"):    run_pubmed(cfg)
+    if args.only in ("yt","all"):        run_youtube(cfg)
+    if args.only in ("crossref","all"):  run_crossref(cfg)
+    if args.only in ("openalex","all"):  run_openalex(cfg)
+    if args.only in ("ct","all"):        run_clinicaltrials(cfg)
+    if args.only in ("orcid","all"):     run_orcid(cfg)
 
-    if args.only in ("pubmed","all"):   run_pubmed(cfg)
-    if args.only in ("yt","all"):       run_youtube(cfg)
-    if args.only in ("crossref","all"): run_crossref(cfg)
-    if args.only in ("openalex","all"): run_openalex(cfg)
-    if args.only in ("ct","all"):       run_clinicaltrials(cfg)
-    if args.only in ("orcid","all"):    run_orcid(cfg)
-
-    print(json.dumps({
-        "outputs": [str(p) for p in OUTPUT.glob("*.csv")],
-        "generated_at": utc_now()
-    }, indent=2))
+    print(json.dumps({"outputs":[str(p) for p in OUTPUT.glob('*.csv')],"generated_at":utc_now()}, indent=2))
 
 if __name__ == "__main__":
     main()
