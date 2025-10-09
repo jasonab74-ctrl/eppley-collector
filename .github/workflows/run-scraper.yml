@@ -27,10 +27,9 @@ jobs:
         env: { PIP_DISABLE_PIP_VERSION_CHECK: "1" }
         run: pip install -r requirements.txt
 
-      # WordPress in two chunks (resumable)
+      # WordPress (resumable, chunked)
       - name: WP chunk 1
         run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
-
       - name: Commit chunk 1
         run: |
           git config --global user.name "GitHub Actions"
@@ -41,7 +40,6 @@ jobs:
 
       - name: WP chunk 2
         run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
-
       - name: Commit chunk 2
         run: |
           git config --global user.name "GitHub Actions"
@@ -61,8 +59,12 @@ jobs:
         run: python main.py --only ct
       - name: ORCID
         run: python main.py --only orcid
-      - name: YouTube metadata
-        run: python main.py --only yt
+
+      # YouTube — new comprehensive collector (search + channels, with tags/descriptions)
+      - name: YouTube (search + channels)
+        run: python youtube_collect.py
+
+      # Semantic Scholar
       - name: Semantic Scholar
         run: python s2_collect.py
 
@@ -78,7 +80,7 @@ jobs:
           git commit -m "Auto-update scraped data $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
 
-      # If anything failed above, mark health and create a GitHub Issue
+      # Health + issue on failure (unchanged from your current setup)
       - name: Mark health failed
         if: failure()
         run: |
@@ -102,7 +104,6 @@ jobs:
             **Branch:** ${{ github.ref }}
 
             The scraper encountered an error. Please review the run logs.
-            (This issue was auto-created by the workflow.)
 
       - name: Upload partial output on failure
         if: failure()
