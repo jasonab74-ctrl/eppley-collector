@@ -49,21 +49,21 @@ jobs:
           git commit -m "WP chunk 2 $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
 
-      # APIs (each isolated so one failure doesn't kill the rest)
+      # Other sources (isolated so one failure can’t kill everything)
       - name: PubMed
         run: python main.py --only pubmed
       - name: Crossref
         run: python main.py --only crossref
       - name: OpenAlex
-        run: python openalex_collect.py
+        run: python main.py --only openalex
       - name: ClinicalTrials.gov
         run: python main.py --only ct
       - name: ORCID
         run: python main.py --only orcid
       - name: YouTube (search + channels)
-        run: python youtube_collect.py
+        run: python youtube_collect.py || true
       - name: Semantic Scholar
-        run: python s2_collect.py
+        run: python s2_collect.py || true
 
       - name: Merge publications
         run: python merge_publications.py
@@ -97,7 +97,6 @@ jobs:
             **Workflow:** ${{ github.workflow }}
             **Run:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
             **Branch:** ${{ github.ref }}
-            The scraper encountered an error. Please review the run logs.
 
       - name: Upload partial output on failure
         if: failure()
