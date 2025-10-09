@@ -52,6 +52,7 @@
       <div class="small" id="wp-head">WordPress crawl progress</div>
       <div class="meter"><div class="bar" id="wp-bar"></div></div>
       <div class="small" id="wp-foot" style="margin-top:6px;">No crawl data yet.</div>
+      <div class="small" id="wp-overall" style="margin-top:6px;">Overall: —</div>
     </section>
 
     <!-- status table -->
@@ -70,15 +71,23 @@
     async function loadWP(){
       try{
         const s = await j('output/wp_state.json');
-        const done = s.completed||0, rem=(s.queue&&s.queue.length)||0, total=done+rem;
+        const done = s.completed||0;
+        const rem  = (s.queue && s.queue.length) || 0;
+        const total = done + rem;
         const pct = total ? Math.round((done/total)*100) : (done?100:0);
+
         document.getElementById('wp-bar').style.width = pct+'%';
         document.getElementById('wp-head').textContent = 'WordPress crawl progress';
         document.getElementById('wp-foot').textContent =
-          total ? `Completed: ${fmt(done)} • Remaining: ${fmt(rem)} • ${pct}% done` :
-                  'Waiting for first discovery run…';
+          total ? `Completed: ${fmt(done)} • Remaining: ${fmt(rem)} • ${pct}% done`
+                : 'Waiting for first discovery run…';
+        // NEW: explicit overall line
+        document.getElementById('wp-overall').textContent =
+          total ? `Overall: ${fmt(done)} / ${fmt(total)} (${pct}%)`
+                : `Overall: —`;
       }catch(e){
         document.getElementById('wp-foot').textContent = 'No crawl state yet (first chunk pending).';
+        document.getElementById('wp-overall').textContent = 'Overall: —';
       }
     }
 
@@ -88,7 +97,6 @@
         document.getElementById('meta').textContent =
           `Generated: ${data.generated_at} (UTC) • Repo: ${data.repo}`;
 
-        // banner stats
         const files = data.files||[];
         const rowsTotal = files.reduce((a,f)=>a+(+f.rows||0),0);
         const filesOk = files.filter(f=>f.exists).length + '/' + files.length;
@@ -96,7 +104,6 @@
         document.getElementById('rows-total').textContent = 'Total rows: ' + fmt(rowsTotal);
         document.getElementById('files-ok').textContent = 'Files: ' + filesOk;
 
-        // table
         const html = `
           <table>
             <thead>
