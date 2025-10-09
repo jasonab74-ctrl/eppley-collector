@@ -8,116 +8,127 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root{--fg:#111;--muted:#666;--line:#e6e6ef;--pill:#f7f7fb}
-    *{box-sizing:border-box} body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;color:var(--fg);background:#fff}
-    header{padding:24px 18px;border-bottom:1px solid var(--line)} h1{margin:0 0 6px} .sub{margin:0;color:var(--muted)}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;color:var(--fg);background:#fff}
+    header{padding:24px 18px;border-bottom:1px solid var(--line)}
+    h1{margin:0 0 6px} .sub{margin:0;color:var(--muted)}
     main{max-width:1100px;margin:22px auto;padding:0 16px}
-    table{border-collapse:collapse;width:100%} th,td{border:1px solid var(--line);padding:10px;text-align:left;font-size:14px} th{background:var(--pill)}
-    .btn{display:inline-block;padding:8px 10px;border:1px solid #111;border-radius:10px;text-decoration:none;color:#111;margin-right:6px}
-    .btn:hover{background:#111;color:#fff} .small{color:var(--muted);font-size:12px}
+    .badges{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+    .statbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 18px}
+    .pill{border:1px solid #111;border-radius:999px;padding:8px 12px;font-size:14px;background:#fff}
     .meter{background:#f1f1f6;border:1px solid var(--line);border-radius:10px;overflow:hidden;height:16px}
     .bar{height:100%;background:#12a150;width:0%}
-    .badges{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+    .small{color:var(--muted);font-size:12px}
+    table{border-collapse:collapse;width:100%;margin-top:14px}
+    th,td{border:1px solid var(--line);padding:10px;text-align:left;font-size:14px}
+    th{background:var(--pill)}
+    .btn{display:inline-block;padding:8px 10px;border:1px solid #111;border-radius:10px;text-decoration:none;color:#111;margin-right:6px}
+    .btn:hover{background:#111;color:#fff}
     footer{margin:32px 0;padding:16px;color:#666;text-align:center;font-size:12px}
   </style>
 </head>
 <body>
   <header>
     <h1>Dr. Barry Eppley — Data Hub</h1>
-    <p class="sub">Live archive of Q&amp;A posts, PubMed papers, and YouTube metadata — automatically collected and updated from public sources.</p>
+    <p class="sub">Live archive of blog Q&amp;As, PubMed papers, and YouTube metadata. Auto-updated.</p>
   </header>
 
   <main>
+    <!-- live workflow badges -->
     <div class="badges">
       <img alt="Scraper status" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/run-scraper.yml?branch=main&label=Scraper">
       <img alt="Status builder" src="https://img.shields.io/github/actions/workflow/status/jasonab74-ctrl/eppley-collector/build-status.yml?branch=main&label=Data%20Status">
     </div>
 
-    <section style="margin:14px 0 22px">
+    <!-- top stats -->
+    <div class="statbar" id="top-stats">
+      <span class="pill" id="last-run">Last updated: —</span>
+      <span class="pill" id="rows-total">Total rows: —</span>
+      <span class="pill" id="files-ok">Files: —</span>
+    </div>
+
+    <!-- WP progress -->
+    <section style="margin:8px 0 18px">
       <div class="small" id="wp-head">WordPress crawl progress</div>
       <div class="meter"><div class="bar" id="wp-bar"></div></div>
-      <div class="small" id="wp-foot" style="margin-top:6px;"></div>
+      <div class="small" id="wp-foot" style="margin-top:6px;">No crawl data yet.</div>
     </section>
 
+    <!-- status table -->
     <div id="meta" class="small"></div>
     <div id="table"></div>
   </main>
 
   <footer>
-    <p>Site maintained automatically via GitHub Actions • Updated nightly</p>
+    <p>Right-click a CSV link → “Save link as…” to download directly. Updated by GitHub Actions.</p>
   </footer>
 
   <script>
-    const REPO = "jasonab74-ctrl/eppley-collector";
+    function fmt(n){return (n||0).toLocaleString('en-US');}
+    async function j(url){const r=await fetch(url+'?'+Date.now()); if(!r.ok) throw new Error(url+' → '+r.status); return r.json();}
 
-    async function fetchJSON(url){
-      const r = await fetch(url + '?' + Date.now());
-      if(!r.ok) throw new Error(url + ' → ' + r.status);
-      return r.json();
-    }
-
-    function fmt(n){ return (n||0).toLocaleString('en-US'); }
-
-    async function loadWPState(){
+    async function loadWP(){
       try{
-        const st = await fetchJSON('output/wp_state.json');
-        const completed = st.completed || 0;
-        const remaining = (st.queue && st.queue.length) || 0;
-        const total = completed + remaining;
-        const pct = total ? Math.round((completed/total)*100) : (completed ? 100 : 0);
-        document.getElementById('wp-bar').style.width = pct + '%';
+        const s = await j('output/wp_state.json');
+        const done = s.completed||0, rem=(s.queue&&s.queue.length)||0, total=done+rem;
+        const pct = total ? Math.round((done/total)*100) : (done?100:0);
+        document.getElementById('wp-bar').style.width = pct+'%';
+        document.getElementById('wp-head').textContent = 'WordPress crawl progress';
         document.getElementById('wp-foot').textContent =
-          total ? `Completed: ${fmt(completed)} • Remaining: ${fmt(remaining)} • ${pct}% done`
-                 : 'Waiting for first discovery run...';
+          total ? `Completed: ${fmt(done)} • Remaining: ${fmt(rem)} • ${pct}% done` :
+                  'Waiting for first discovery run…';
       }catch(e){
-        document.getElementById('wp-foot').textContent = 'No crawl data yet — first run pending.';
+        document.getElementById('wp-foot').textContent = 'No crawl state yet (first chunk pending).';
       }
     }
 
     async function loadStatus(){
       try{
-        const data = await fetchJSON('output/status.json');
+        const data = await j('output/status.json');
         document.getElementById('meta').textContent =
           `Generated: ${data.generated_at} (UTC) • Repo: ${data.repo}`;
-        const rows = data.files || [];
+
+        // banner stats
+        const files = data.files||[];
+        const rowsTotal = files.reduce((a,f)=>a+(+f.rows||0),0);
+        const filesOk = files.filter(f=>f.exists).length + '/' + files.length;
+        document.getElementById('last-run').textContent = 'Last updated: ' + (data.generated_at||'—') + ' UTC';
+        document.getElementById('rows-total').textContent = 'Total rows: ' + fmt(rowsTotal);
+        document.getElementById('files-ok').textContent = 'Files: ' + filesOk;
+
+        // table
         const html = `
           <table>
             <thead>
               <tr>
-                <th>File</th>
-                <th>Description</th>
-                <th>Last Updated (UTC)</th>
-                <th>Size</th>
-                <th>Total Rows</th>
-                <th>New Rows</th>
-                <th>Links</th>
+                <th>File</th><th>Description</th><th>Last Updated (UTC)</th>
+                <th>Size</th><th>Total Rows</th><th>New Rows</th><th>Links</th>
               </tr>
             </thead>
             <tbody>
-              ${rows.map(r => `
+              ${files.map(r=>`
                 <tr>
-                  <td><code>${r.name}</code><div class="small">${r.exists ? '✅ available' : '❌ missing'}</div></td>
-                  <td>${r.label || ''}</td>
-                  <td>${r.updated_at || ''}</td>
-                  <td>${r.size_mb ? r.size_mb + ' MB' : '—'}</td>
-                  <td>${r.rows ? fmt(r.rows) : '—'}</td>
-                  <td>${r.new_rows_since_last_run ? '+'+fmt(r.new_rows_since_last_run) : '0'}</td>
+                  <td><code>${r.name}</code><div class="small">${r.exists?'✅ available':'❌ missing'}</div></td>
+                  <td>${r.label||''}</td>
+                  <td>${r.updated_at||''}</td>
+                  <td>${r.size_mb? r.size_mb+' MB':'—'}</td>
+                  <td>${r.rows? fmt(r.rows):'—'}</td>
+                  <td>${r.new_rows_since_last_run? '+'+fmt(r.new_rows_since_last_run):'0'}</td>
                   <td>
                     <a class="btn" href="${r.download_url}" target="_blank" rel="noopener">Download CSV</a>
                     <a class="btn" href="${r.webpage_url}" target="_blank" rel="noopener">View on GitHub</a>
                   </td>
-                </tr>
-              `).join('')}
+                </tr>`).join('')}
             </tbody>
           </table>`;
         document.getElementById('table').innerHTML = html;
       }catch(e){
         document.getElementById('table').innerHTML =
-          '<p>status.json not yet available — run “Build Data Status” after the first scraper commits.</p>';
+          '<p>status.json not yet available — run “Build Data Status” after the scraper commits, then refresh.</p>';
       }
     }
 
-    loadWPState();
-    loadStatus();
+    loadWP(); loadStatus();
   </script>
 </body>
 </html>
