@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Eppley Collector — hardened final
+Eppley Collector — hardened final w/ OpenAlex ORCID pass
 - WP: REST first, then sitemap+HTML fallback
-- OpenAlex: retries, per-page=200, mailto
+- OpenAlex: retries, per-page=200, mailto, plus secondary author.orcid pass
 - ClinicalTrials: retries + safe JSON
 - All collectors isolated; failures never abort the run
 - Outputs live in ./output/*.csv
@@ -218,14 +218,15 @@ def run_crossref(names):
     log(f"[crossref] wrote {len(out)} rows → crossref_works.csv")
 
 # ----------------------------
-# OpenAlex (robust, per-page=200, mailto)
+# OpenAlex (robust, per-page=200, mailto) + ORCID secondary pass
 # ----------------------------
 
 def run_openalex(names):
     out = []
     base = "https://api.openalex.org/works"
-    # OpenAlex appreciates a contact; helps reliability
-    contact = "mailto=data-admin@invalid.example"
+    contact = "mailto:data-admin@invalid.example"
+
+    # Primary pass: author.display_name.search
     for n in names:
         page = 1
         while True:
@@ -247,6 +248,42 @@ def run_openalex(names):
                 })
             page += 1
             time.sleep(0.3)
+
+    # Secondary pass: author.orcid based on collected ORCID profiles (if any)
+    try:
+        orcids = []
+        p = os.path.join(OUTDIR, "orcid_profiles.csv")
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                rdr = csv.DictReader(f)
+                for r in rdr:
+                    if r.get("orcid"):
+                        orcids.append(r["orcid"])
+        # sanity cap to avoid excessive calls
+        for pid in orcids[:10]:
+            page = 1
+            while True:
+                url = (
+                    f"{base}?filter=author.orcid:{pid}"
+                    f"&per-page=200&page={page}&mailto={urllib.parse.quote(contact)}"
+                )
+                r = rget(url, tries=3, backoff=1.6)
+                js = safe_json(r)
+                results = js.get("results") or []
+                if not results:
+                    break
+                for it in results:
+                    out.append({
+                        "title": it.get("title"),
+                        "doi": it.get("doi"),
+                        "id": it.get("id"),
+                        "publication_year": it.get("publication_year"),
+                    })
+                page += 1
+                time.sleep(0.3)
+    except Exception as e:
+        log(f"[openalex] orcid pass skipped: {e}")
+
     write_csv(os.path.join(OUTDIR, "openalex_works.csv"), out)
     log(f"[openalex] wrote {len(out)} rows → openalex_works.csv")
 
@@ -262,7 +299,7 @@ def run_clinicaltrials(terms):
     out = []
     for t in terms:
         expr = urllib.parse.quote(t)
-        fields = ",".join(CT_FIELDS)
+        fields = ","join(CT_FIELDS)
         url = (
             "https://clinicaltrials.gov/api/query/study_fields"
             f"?expr={expr}&fields={urllib.parse.quote(fields)}&min_rnk=1&max_rnk=200&fmt=json"
