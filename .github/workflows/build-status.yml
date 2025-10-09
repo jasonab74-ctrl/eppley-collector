@@ -54,6 +54,8 @@ jobs:
               "clinical_trials.csv":"ClinicalTrials.gov studies",
               "orcid_profiles.csv":"ORCID profiles",
               "orcid_works.csv":"ORCID public works",
+              "semanticscholar_works.csv":"Publications (Semantic Scholar)",
+              "publications_all.csv":"Merged publications (deduped)"
           }
 
           rows_out = []
@@ -73,11 +75,8 @@ jobs:
                   try:
                       with open(path,"r",encoding="utf-8",errors="ignore") as f:
                           reader = csv.reader(f); rows = list(reader)
-                          if rows:
-                              header = rows[0]
-                              # skip header
-                              rows = rows[1:] if header else rows
-                              entry["rows"] = len(rows)
+                          if rows: rows = rows[1:]  # skip header
+                          entry["rows"] = len(rows)
                   except Exception:
                       pass
                   prior = prev_map.get(name) or prev_map.get(path) or {}
@@ -94,10 +93,41 @@ jobs:
           print(json.dumps(out, indent=2))
           PY
 
-      - name: Commit status.json
+      - name: Write health.json (ok)
+        run: |
+          mkdir -p output
+          echo '{"last_status":"ok","generated_at":"'"$(date -u +%FT%TZ)"'"}' > output/health.json
+
+      - name: Generate manifest.json (checksums)
+        run: |
+          python - <<'PY'
+          import hashlib, json, glob, os, time
+          m=[]
+          for p in sorted(glob.glob("output/*.csv")):
+              h=hashlib.sha256()
+              with open(p,'rb') as f:
+                  for chunk in iter(lambda:f.read(1<<20), b''): h.update(chunk)
+              m.append({"name":os.path.basename(p),"sha256":h.hexdigest(),"bytes":os.path.getsize(p)})
+          out={"generated_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"files":m}
+          os.makedirs("output", exist_ok=True)
+          with open("output/manifest.json","w") as f: json.dump(out,f,indent=2)
+          PY
+
+      - name: Commit status + health + manifest
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add output/status.json
-          git commit -m "Update data status" || echo "No changes"
+          git add output/status.json output/health.json output/manifest.json
+          git commit -m "Update data status & health & manifest" || echo "No changes"
           git push
+
+      - name: Mark health failed (if any step failed)
+        if: failure()
+        run: |
+          mkdir -p output
+          echo '{"last_status":"failed","generated_at":"'"$(date -u +%FT%TZ)"'"}' > output/health.json
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add output/health.json
+          git commit -m "health: failed" || true
+          git push || true
