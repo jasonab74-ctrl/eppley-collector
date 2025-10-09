@@ -32,32 +32,46 @@ jobs:
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: pip install -r requirements.txt
 
+      # --- WordPress in two smaller chunks (safe & resumable) ---
       - name: WP chunk 1
         env: { PYTHONUNBUFFERED: "1" }
-        run: python main.py --only wp --wp-max 600 --save-every 150 --delay 3.5
+        run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
 
       - name: Commit after WP chunk 1
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add output/
-          git commit -m "WP chunk 1 $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes to commit"
+          git commit -m "WP chunk 1 $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes"
           git push
 
       - name: WP chunk 2
         env: { PYTHONUNBUFFERED: "1" }
-        run: python main.py --only wp --wp-max 600 --save-every 150 --delay 3.5
+        run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
 
       - name: Commit after WP chunk 2
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add output/
-          git commit -m "WP chunk 2 $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes to commit"
+          git commit -m "WP chunk 2 $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes"
           git push
 
+      # --- API-based sources (fast) ---
       - name: PubMed
         run: python main.py --only pubmed
+
+      - name: Crossref
+        run: python main.py --only crossref
+
+      - name: OpenAlex
+        run: python main.py --only openalex
+
+      - name: ClinicalTrials.gov
+        run: python main.py --only ct
+
+      - name: ORCID
+        run: python main.py --only orcid
 
       - name: YouTube metadata
         run: python main.py --only yt
@@ -67,7 +81,7 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add output/
-          git commit -m "Auto-update scraped data $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes to commit"
+          git commit -m "Auto-update scraped data $(date -u +"%Y-%m-%dT%H:%M:%SZ")" || echo "No changes"
           git push
 
       - name: Upload partial output on failure
