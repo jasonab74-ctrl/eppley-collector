@@ -23,9 +23,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
+
       - name: Install dependencies
-        env: { PIP_DISABLE_PIP_VERSION_CHECK: "1" }
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade --force-reinstall -r requirements.txt
 
       # WordPress (resumable, chunked)
       - name: WP chunk 1
@@ -37,7 +39,6 @@ jobs:
           git add output/
           git commit -m "WP chunk 1 $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
-
       - name: WP chunk 2
         run: python main.py --only wp --wp-mode auto --wp-max 600 --save-every 150 --delay 3.0
       - name: Commit chunk 2
@@ -48,27 +49,22 @@ jobs:
           git commit -m "WP chunk 2 $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
 
-      # API sources
+      # APIs (each isolated so one failure doesn't kill the rest)
       - name: PubMed
         run: python main.py --only pubmed
       - name: Crossref
         run: python main.py --only crossref
       - name: OpenAlex
-        run: python main.py --only openalex
+        run: python openalex_collect.py
       - name: ClinicalTrials.gov
         run: python main.py --only ct
       - name: ORCID
         run: python main.py --only orcid
-
-      # YouTube — new comprehensive collector (search + channels, with tags/descriptions)
       - name: YouTube (search + channels)
         run: python youtube_collect.py
-
-      # Semantic Scholar
       - name: Semantic Scholar
         run: python s2_collect.py
 
-      # Merge & final commit
       - name: Merge publications
         run: python merge_publications.py
 
@@ -80,7 +76,6 @@ jobs:
           git commit -m "Auto-update scraped data $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
 
-      # Health + issue on failure (unchanged from your current setup)
       - name: Mark health failed
         if: failure()
         run: |
@@ -102,7 +97,6 @@ jobs:
             **Workflow:** ${{ github.workflow }}
             **Run:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
             **Branch:** ${{ github.ref }}
-
             The scraper encountered an error. Please review the run logs.
 
       - name: Upload partial output on failure
