@@ -38,6 +38,7 @@
     .ok{color:var(--good)} .warn{color:var(--warn)} .err{color:var(--bad)}
     .foot{color:var(--muted);margin-top:14px}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .tip{margin-top:12px;color:#ffb648}
   </style>
 </head>
 <body>
@@ -65,6 +66,9 @@
         <div class="stat"><span class="k">Issues</span> <span id="issueCount">0</span></div>
       </div>
       <p class="foot">Status logic: <span class="ok">ok</span> = loads & meets threshold; <span class="warn">warn</span> = loads but thin; <span class="err">error</span> = fetch failed.</p>
+      <div id="ytTip" class="tip" style="display:none;">
+        Heads up: <b>youtube_all.csv</b> is missing or empty. Make sure your Actions secret <span class="mono">YT_API_KEY</span> is set (Settings → Secrets → Actions).
+      </div>
     </div>
 
     <div class="card">
@@ -97,55 +101,42 @@
 </div>
 
 <script>
-// ---- Configuration ---------------------------------------------------------
+// ---- Configuration
 const FILES = [
   { name:"wordpress_posts.csv", desc:"All blog & Q&A posts with extracted content.", min: 120 },
   { name:"pubmed_eppley.csv",  desc:"PubMed summary for Eppley-authored papers.",   min: 150 },
   { name:"crossref_works.csv", desc:"Crossref works and DOIs.",                     min: 1200 },
-  { name:"openalex_works.csv", desc:"OpenAlex works (IDs, venues, concepts).",      min: 0 },
-  { name:"clinical_trials.csv",desc:"ClinicalTrials.gov matches (NCT IDs).",        min: 0 },
+  { name:"openalex_works.csv", desc:"OpenAlex works (IDs, venues, concepts).",      min: 1 },
+  { name:"clinical_trials.csv",desc:"ClinicalTrials.gov matches (NCT IDs).",        min: 1 },
   { name:"orcid_profiles.csv", desc:"ORCID profile snapshots.",                      min: 1 },
-  { name:"orcid_works.csv",    desc:"ORCID works (titles, years, IDs).",            min: 0 },
-  { name:"youtube_all.csv",    desc:"YouTube videos/metadata referencing Eppley.",  min: 50 }
+  { name:"orcid_works.csv",    desc:"ORCID works (titles, years, IDs).",            min: 1 },
+  { name:"youtube_all.csv",    desc:"YouTube videos/metadata referencing Eppley.",  min: 20 }
 ];
 
-// base path resolution (supports root or /docs hosting)
+// base path (supports root or /docs hosting)
 const base = location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/[^/]+$/, '');
 const siteRoot = location.origin + base.replace(/\/docs\/?$/, '/');
 const outputBase = siteRoot + 'output/';
 document.getElementById('siteUrl').textContent = siteRoot;
 document.getElementById('siteUrl').href = siteRoot;
 
-// ---- Helpers ---------------------------------------------------------------
-async function fetchLastModified(url){
-  try{
-    const r = await fetch(url, { method:'HEAD', cache:'no-store' });
-    if(!r.ok) return '';
-    return r.headers.get('last-modified') || '';
-  }catch{return '';}
-}
-
+// helpers
 async function countCsvRows(url){
   try{
     const r = await fetch(url, { cache:'no-store' });
-    if(!r.ok) return { ok:false, rows:0, status:`${r.status}`, last:'' };
+    if(!r.ok) return { ok:false, rows:0, status:String(r.status), last:'' };
     const txt = await r.text();
     const lines = txt.split(/\r?\n/).filter(Boolean);
     const rows = Math.max(0, lines.length - 1);
-    const last = (r.headers.get('last-modified') || '');
+    const last = r.headers.get('last-modified') || '';
     return { ok:true, rows, status:'ok', last };
   }catch(e){
     return { ok:false, rows:0, status:'error', last:'' };
   }
 }
+function fmtUTC(s){ if(!s) return '—'; const d=new Date(s); return isNaN(d)?'—':d.toUTCString().replace('GMT','UTC'); }
 
-function fmtUTC(s){
-  if(!s) return '—';
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? '—' : d.toUTCString().replace('GMT','UTC');
-}
-
-// ---- Render table ----------------------------------------------------------
+// render table skeleton
 const tbody = document.querySelector('#files tbody');
 FILES.forEach(f=>{
   const tr = document.createElement('tr');
@@ -161,12 +152,13 @@ FILES.forEach(f=>{
   tbody.appendChild(tr);
 });
 
-// ---- Audit all files -------------------------------------------------------
+// audit
 (async () => {
   const rowsCells = document.querySelectorAll('[data-rows]');
   const lastCells = document.querySelectorAll('[data-last]');
   const statusCells = document.querySelectorAll('[data-status]');
   let totalRows = 0, present = 0, issues = 0, newest = 0;
+  let ytMissingOrEmpty = false;
 
   for(let i=0;i<FILES.length;i++){
     const f = FILES[i];
@@ -181,21 +173,22 @@ FILES.forEach(f=>{
       totalRows += rows;
       const t = last ? Date.parse(last) : 0;
       newest = Math.max(newest, t);
-
-      // status by threshold
+      // threshold check
       if(rows >= f.min){
         statusCells[i].innerHTML = `<span class="ok">ok</span>`;
       }else{
         statusCells[i].innerHTML = `<span class="warn">warn</span>`;
         issues++;
+        if (f.name === "youtube_all.csv" && rows === 0) ytMissingOrEmpty = true;
       }
     }else{
       statusCells[i].innerHTML = `<span class="err">${status==='404'?'missing':'error'}</span>`;
       issues++;
+      if (f.name === "youtube_all.csv") ytMissingOrEmpty = true;
     }
   }
 
-  // Top summary
+  // summary
   document.getElementById('filesPresent').textContent = `${present}/${FILES.length}`;
   document.getElementById('totalRows').textContent = totalRows.toLocaleString();
   document.getElementById('issueCount').textContent = issues;
@@ -205,12 +198,16 @@ FILES.forEach(f=>{
 
   const overall = document.getElementById('overall');
   if(issues === 0){
-    overall.classList.add('ok');
-    overall.textContent = 'overall: passing';
+    overall.classList.add('ok'); overall.textContent = 'overall: passing';
   }else{
     overall.classList.remove('ok');
-    overall.classList.add(issues > 0 && present > 0 ? 'warn' : 'err');
-    overall.textContent = issues > 0 && present > 0 ? 'overall: warnings' : 'overall: failing';
+    overall.classList.add(present ? 'warn' : 'err');
+    overall.textContent = present ? 'overall: warnings' : 'overall: failing';
+  }
+
+  // explicit YouTube tip if missing or empty
+  if (ytMissingOrEmpty) {
+    document.getElementById('ytTip').style.display = 'block';
   }
 })();
 </script>
