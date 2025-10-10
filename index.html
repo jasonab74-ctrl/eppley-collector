@@ -1,87 +1,48 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dr. Barry Eppley Research Dataset</title>
 <style>
-  :root{--bg:#0d0d0d;--panel:#111;--muted:#bbb;--line:#222;--ok:#22c55e;--warn:#facc15;--link:#60a5fa;--btn:#111;--btnp:#2563eb}
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:var(--bg);color:#eaeaea;margin:0;padding:40px 20px}
-  h1{font-size:1.9rem;margin:.2rem 0 .3rem}
-  p.subtitle{color:var(--muted);margin:.1rem 0 1.2rem}
-  .stamp{color:#9aa0a6;font-size:.95rem;margin:.2rem 0 1rem}
-  .stamp strong{color:#eaeaea}
-  .nbx-wrap{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 22px}
-  .nbx-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid #2a2a2a;background:var(--btn);color:#fff;text-decoration:none;font-weight:600}
-  .nbx-btn:hover{background:#161616}
-  .nbx-btn--primary{background:var(--btnp);border-color:var(--btnp)}
-  .nbx-btn--primary:hover{filter:brightness(1.05)}
-  .nbx-note{font-size:.9rem;color:#b7b7b7;margin-top:4px}
-  table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:10px;overflow:hidden}
-  th,td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{background:#181818;text-align:left;font-weight:600;color:#ccc}
-  tr:last-child td{border-bottom:none}
-  .warn{color:var(--warn);font-weight:600}
-  .ok{color:var(--ok);font-weight:600}
-  a{color:var(--link);text-decoration:none}
-  a:hover{text-decoration:underline}
-  .footer{margin-top:22px;color:#999;font-size:.92rem}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-</style>
-</head>
-<body>
+  :root{--bg:#0e1014;--card:#151923;--muted:#9aa3b2;--text:#e8ecf1;--ok:#1fbf75;--warn:#f6b100;--skip:#6c7480;--line:#232a36;--accent:#5fa8ff}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Inter,Roboto,Arial}
+  .wrap{max-width:1080px;margin:40px auto;padding:0 20px}
+  h1{margin:0 0 10px}
+  .lead{color:var(--muted);margin:0 0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  table{width:100%;border-collapse:collapse} th,td{padding:12px;border-bottom:1px solid var(--line)} th{color:#bfc6d3;text-align:left}
+  a{color:var(--accent);text-decoration:none}
+  .badge{padding:3px 10px;border-radius:999px;font-weight:700;font-size:.82rem;border:1px solid}
+  .ok{color:var(--ok);border-color:var(--ok)} .warn{color:var(--warn);border-color:var(--warn)} .skipped{color:var(--skip);border-color:var(--skip)}
+  .right{text-align:right} .foot{margin-top:10px;color:var(--muted)}
+</style></head><body>
+<div class="wrap">
   <h1>Dr. Barry Eppley Research Dataset</h1>
-  <p class="subtitle">Automatically collected and aggregated from public sources: publications, clinical trials, and video content. Updated nightly.</p>
+  <p class="lead">Automatically collected and aggregated from public sources (OpenAlex, Crossref, WordPress). Updated nightly.</p>
 
-  <div class="stamp">
-    <span>Last updated:</span> <strong id="lastUpdated">—</strong>
-    <span class="mono">•</span>
-    <span>Total records:</span> <strong id="totalRecords">—</strong>
+  <div class="card">
+    <div style="margin:0 0 8px;color:var(--muted)">Last updated: <span id="lu">—</span> • Total records: <span id="tot">—</span></div>
+    <table><thead><tr><th>File</th><th>Description</th><th class="right">Rows</th><th>Status</th><th>Download</th></tr></thead>
+      <tbody id="tb"></tbody></table>
+    <div class="foot">Unified dataset: <a href="output/eppley_master.csv">output/eppley_master.csv</a> • Status: <a href="output/status.json">output/status.json</a></div>
   </div>
-
-  <div class="nbx-wrap">
-    <a class="nbx-btn" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit?usp=sharing">📊 View Live Dataset (Google Sheet)</a>
-    <a class="nbx-btn nbx-btn--primary" target="_blank" rel="noopener" href="https://notebooklm.google.com/notebook/YOUR_NOTEBOOK_ID">🧠 Open in NotebookLM</a>
-    <a class="nbx-btn" target="_blank" rel="noopener" href="output/eppley_master.csv">🗂️ Download master.csv</a>
-  </div>
-
-  <table id="filesTable">
-    <thead><tr><th style="width:220px">File</th><th>Description</th><th style="width:110px">Rows</th><th style="width:90px">Status</th><th style="width:140px">Download</th></tr></thead>
-    <tbody>
-      <tr data-csv="output/wordpress_posts.csv"><td>wordpress_posts.csv</td><td>All blog &amp; Q&amp;A posts authored by Dr. Eppley</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/wordpress_posts.csv">CSV</a></td></tr>
-      <tr data-csv="output/pubmed_eppley.csv"><td>pubmed_eppley.csv</td><td>Peer-reviewed PubMed research articles</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/pubmed_eppley.csv">CSV</a></td></tr>
-      <tr data-csv="output/pubmed_eppley_with_abstracts.csv"><td>pubmed_eppley_with_abstracts.csv</td><td>PubMed articles enriched with abstracts (preferred)</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/pubmed_eppley_with_abstracts.csv">CSV</a></td></tr>
-      <tr data-csv="output/crossref_works.csv"><td>crossref_works.csv</td><td>Crossref-indexed scholarly works</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/crossref_works.csv">CSV</a></td></tr>
-      <tr data-csv="output/openalex_works.csv"><td>openalex_works.csv</td><td>OpenAlex-identified research works</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/openalex_works.csv">CSV</a></td></tr>
-      <tr data-csv="output/clinical_trials.csv"><td>clinical_trials.csv</td><td>ClinicalTrials.gov study records</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/clinical_trials.csv">CSV</a></td></tr>
-      <tr data-csv="output/orcid_profiles.csv"><td>orcid_profiles.csv</td><td>ORCID public researcher profiles</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/orcid_profiles.csv">CSV</a></td></tr>
-      <tr data-csv="output/orcid_works.csv"><td>orcid_works.csv</td><td>ORCID-linked publication data</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/orcid_works.csv">CSV</a></td></tr>
-      <tr data-csv="output/youtube_all.csv"><td>youtube_all.csv</td><td>YouTube videos featuring or uploaded by Dr. Eppley</td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/youtube_all.csv">CSV</a></td></tr>
-      <tr data-csv="output/eppley_master.csv"><td><strong>eppley_master.csv</strong></td><td><strong>Unified master dataset (merged from all sources)</strong></td><td class="rows">—</td><td class="status warn">warn</td><td><a href="output/eppley_master.csv">CSV</a></td></tr>
-    </tbody>
-  </table>
-
-  <div class="footer">
-    Unified dataset: <a href="output/eppley_master.csv">output/eppley_master.csv</a> · Status: <a href="output/status.json">output/status.json</a>
-  </div>
-
+</div>
 <script>
-  function computeBase(){ const hostIsGh = location.hostname.endsWith('github.io'); const parts = location.pathname.split('/').filter(Boolean); return hostIsGh && parts.length>0 ? '/' + parts[0] : ''; }
-  const BASE = computeBase();
-
-  async function fetchJSON(path){ try{ const r=await fetch(BASE+'/'+path); if(!r.ok) throw new Error(r.status); return await r.json(); }catch(e){ return null; } }
-  async function fetchText(path){ try{ const r=await fetch(BASE+'/'+path); if(!r.ok) throw new Error(r.status); return await r.text(); }catch(e){ return null; } }
-  async function countCsvRows(p){ const t=await fetchText(p); if(!t) return 0; const lines=t.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(x=>x.trim().length>0); return Math.max(0, lines.length-1); }
-
-  function setStamp(ts,total){ const lu=document.getElementById('lastUpdated'); const tr=document.getElementById('totalRecords'); if(ts) lu.textContent=new Date(ts).toLocaleString(); if(typeof total==='number') tr.textContent=total.toLocaleString(); }
-  function setRow(tr,n){ tr.querySelector('.rows').textContent=n.toLocaleString(); const s=tr.querySelector('.status'); if(n>0){ s.textContent='ok'; s.classList.remove('warn'); s.classList.add('ok'); } else { s.textContent='warn'; s.classList.remove('ok'); s.classList.add('warn'); } }
-
-  (async function(){
-    const status = await fetchJSON('output/status.json');
-    if(status){ setStamp(status.timestamp, status.records); }
-    const trs = Array.from(document.querySelectorAll('#filesTable tbody tr'));
-    for (const tr of trs){ const p = tr.getAttribute('data-csv'); const n = await countCsvRows(p); setRow(tr, n); }
-  })();
-</script>
-</body>
-</html>
+const FILES = {
+  "wordpress_posts.csv": "All blog & Q&A posts authored by Dr. Eppley",
+  "crossref_works.csv": "Crossref-indexed scholarly works",
+  "openalex_works.csv": "OpenAlex-identified research works",
+  "eppley_master.csv": "Unified master dataset (merged from all sources)"
+};
+const tb=document.getElementById('tb');
+function badge(s){const cls=(s==='ok')?'ok':(s==='warn'?'warn':'skipped');return `<span class="badge ${cls}">${s}</span>`;}
+fetch('output/status.json',{cache:'no-store'}).then(r=>r.json()).then(s=>{
+  document.getElementById('lu').textContent=s.updated_at||'—';
+  document.getElementById('tot').textContent=(s.total_records??'—').toLocaleString();
+  const order=["wordpress_posts.csv","crossref_works.csv","openalex_works.csv","eppley_master.csv"];
+  for(const f of order){
+    const rec=s.files[f]||{rows:0,status:"skipped"};
+    tb.insertAdjacentHTML('beforeend',
+      `<tr><td><b>${f}</b></td><td>${FILES[f]||''}</td><td class="right">${rec.rows.toLocaleString()}</td><td>${badge(rec.status)}</td><td><a href="output/${f}">${f.endsWith('.csv')?'CSV':'File'}</a></td></tr>`
+    );
+  }
+}).catch(()=>{tb.innerHTML=`<tr><td colspan="5">status.json not found</td></tr>`});
+</script></body></html>
