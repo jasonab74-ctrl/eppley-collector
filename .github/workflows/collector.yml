@@ -1,135 +1,50 @@
-name: Eppley Collector (nightly + manual)
+name: Collect & Build
 
 on:
   workflow_dispatch:
   schedule:
-    # 16:30 UTC ~= 09:30 America/Phoenix
-    - cron: "30 16 * * *"
+    - cron: "35 6 * * *"
 
 permissions:
   contents: write
-  pull-requests: write
-
-concurrency:
-  group: collector
-  cancel-in-progress: false
 
 jobs:
-  run-collector:
+  build:
     runs-on: ubuntu-latest
-    env:
-      YT_API_KEY: ${{ secrets.YT_API_KEY }}
-      PYTHONUNBUFFERED: "1"
-
     steps:
-      - name: Checkout (full history for rebase)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (if any)
+      - name: Install deps
         run: |
-          if [ -f requirements.txt ]; then
-            python -m pip install --upgrade pip
-            pip install -r requirements.txt
-          else
-            echo "No requirements.txt, proceeding…"
-          fi
+          python -m pip install --upgrade pip
+          pip install requests pandas beautifulsoup4 lxml
 
-      - name: Run collector (main.py)
+      - name: Export env
+        env:
+          NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
         run: |
-          python main.py
+          echo "NCBI_EMAIL=${NCBI_EMAIL}" >> $GITHUB_ENV
+          echo "YT_API_KEY=${YT_API_KEY}" >> $GITHUB_ENV
 
-      # NEW: convert CSVs into Markdown for NotebookLM ingestion
-      - name: Convert CSVs to NotebookLM Markdown
+      - name: Run collectors
+        run: python main.py
+
+      - name: Enrich fulltext & build corpus
         run: |
-          python tools/convert_for_notebooklm.py || echo "Markdown conversion skipped"
+          python tools/enrich_fulltext.py
+          python tools/make_corpus.py
 
-      # (remaining steps unchanged…)
-      - name: Summarize output
-        id: summarize
+      - name: Commit artifacts
         run: |
-          mkdir -p output || true
-          echo "Files in output/:"
-          ls -lh output || true
-
-          CSV="output/eppley_master.csv"
-          JSON="output/eppley_master.json"
-          CSV_ROWS=0
-          if [ -f "$CSV" ]; then
-            CSV_ROWS=$( (wc -l < "$CSV") || echo 1 )
-            CSV_ROWS=$(( CSV_ROWS>0 ? CSV_ROWS-1 : 0 ))
-          fi
-          JSON_SIZE="$( [ -f "$JSON" ] && wc -c < "$JSON" || echo 0 )"
-
-          echo "csv_rows=$CSV_ROWS" >> $GITHUB_OUTPUT
-          echo "json_bytes=$JSON_SIZE" >> $GITHUB_OUTPUT
-
-      - name: Configure Git (bot identity)
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Prepare bot branch
-        run: |
-          BOT_BRANCH="bot/scrape"
-          git checkout ${{ github.event.repository.default_branch }}
-          git pull --rebase origin ${{ github.event.repository.default_branch }}
-          if git show-ref --verify --quiet refs/heads/$BOT_BRANCH; then
-            git checkout $BOT_BRANCH
-            git pull --rebase origin $BOT_BRANCH || true
-            git rebase ${{ github.event.repository.default_branch }} || true
-          else
-            git checkout -b $BOT_BRANCH
-          fi
-
-      - name: Stage changes (only /output)
-        id: stage
-        run: |
-          git add -A output || true
-          if git diff --cached --quiet; then
-            echo "changed=no" >> $GITHUB_OUTPUT
-          else
-            echo "changed=yes" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Commit
-        if: steps.stage.outputs.changed == 'yes'
-        run: |
-          TS="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-          git commit -m "data: refresh outputs (${TS})"
-
-      - name: Push bot branch
-        if: steps.stage.outputs.changed == 'yes'
-        run: |
-          git push origin bot/scrape
-
-      - name: Open or update PR into main
-        if: steps.stage.outputs.changed == 'yes'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: bot/scrape
-          base: ${{ github.event.repository.default_branch }}
-          title: "Data refresh: ${{ steps.summarize.outputs.csv_rows }} rows in master CSV"
-          body: |
-            Automated data refresh.
-            - **eppley_master.csv** rows: `${{ steps.summarize.outputs.csv_rows }}`
-            - **eppley_master.json** bytes: `${{ steps.summarize.outputs.json_bytes }}`
-
-            This PR was created by the nightly collector. If checks pass, you can merge, or keep the `automerge` label to merge automatically.
-          labels: |
-            automerge
-          draft: false
-          commit-message: "data: refresh outputs"
-
-      - name: Summary
-        run: |
-          echo "Collector finished."
-          echo "CSV rows: ${{ steps.summarize.outputs.csv_rows }}"
-          echo "JSON bytes: ${{ steps.summarize.outputs.json_bytes }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/*.csv output/*.jsonl output/expanded/* || true
+          git commit -m "Update outputs (collect + enrich + corpus)" || echo "No changes"
+          git push
