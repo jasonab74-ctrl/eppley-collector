@@ -4,6 +4,8 @@
 import os, csv, time, requests
 from typing import List, Dict, Any
 
+# Retrieve the YouTube Data API key from the environment.  If unset or empty
+# the collector will operate in a no-op mode and simply write an empty CSV.
 API_KEY = os.getenv("YT_API_KEY", "").strip()
 BASE_SEARCH = "https://www.googleapis.com/youtube/v3/search"
 BASE_VIDEOS = "https://www.googleapis.com/youtube/v3/videos"
@@ -147,9 +149,36 @@ def get_video_metadata(video_ids: List[str]) -> List[Dict[str, Any]]:
 
 
 def run_youtube(out_path: str = "output/youtube_all.csv") -> int:
-    """Full run: search terms + channels."""
+    """Collect YouTube video metadata or write an empty CSV if no API key is available.
+
+    This function attempts to search for and download video metadata using the
+    YouTube Data API.  If the ``YT_API_KEY`` environment variable is not set,
+    it will fall back to writing an empty CSV with the appropriate header
+    fields and return zero.  This behaviour prevents the entire pipeline
+    from failing when credentials are missing.
+
+    Parameters
+    ----------
+    out_path : str
+        The destination CSV path.  Defaults to ``output/youtube_all.csv``.
+
+    Returns
+    -------
+    int
+        The number of video records written (``0`` if API access is
+        unavailable).
+    """
+    # Ensure the output directory exists
+    import os
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+    # When there is no API key we simply emit an empty CSV and return early.
     if not API_KEY:
-        raise SystemExit("[youtube] Missing YT_API_KEY environment variable")
+        with open(out_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=FIELDS)
+            writer.writeheader()
+        print(f"[youtube] no API key; wrote 0 rows -> {out_path}")
+        return 0
 
     all_ids = set()
 
@@ -170,13 +199,13 @@ def run_youtube(out_path: str = "output/youtube_all.csv") -> int:
     ids_list = list(all_ids)
     print(f"[youtube] unique video IDs: {len(ids_list)}")
 
-    # Fetch metadata
+    # Fetch metadata in batches
     details = get_video_metadata(ids_list)
 
     with open(out_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDS)
-        w.writeheader()
-        w.writerows(details)
+        writer = csv.DictWriter(f, fieldnames=FIELDS)
+        writer.writeheader()
+        writer.writerows(details)
 
     print(f"[youtube] wrote {len(details)} rows -> {out_path}")
     return len(details)
