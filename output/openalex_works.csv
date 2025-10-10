@@ -1,1 +1,1 @@
-id,display_name,publication_year,host_venue,type,authorships,cited_by_count,primary_location_url
+openalex_id,doi,title,publication_date,type,cited_by_count,host_venue_name,host_venue_publisher,authorships,concepts,openalex_url
