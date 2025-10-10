@@ -1,0 +1,7 @@
+{
+  "filters": ["all", "official", "insiders", "national"],
+  "insiders": [
+    {"name": "GoldandBlack.com", "url": "https://purdue.rivals.com/"},
+    {"name": "Journal & Courier", "url": "https://www.jconline.com/sports/boilermakers/"}
+  ]
+}
