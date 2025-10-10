@@ -1,53 +1,40 @@
-#!/usr/bin/env python3
-import os, importlib, traceback, pathlib
-from datetime import datetime
+# Orchestrates the collectors and merges to eppley_master.csv
 
-ROOT = pathlib.Path(__file__).resolve().parent
-OUT = ROOT / "output"
-OUT.mkdir(exist_ok=True)
+import importlib, pandas as pd
+from pathlib import Path
 
-EMAIL = os.getenv("EMAIL", "").strip()  # Set via Actions Variable NCBI_EMAIL
+OUTPUT = Path("output")
+MASTER = OUTPUT / "eppley_master.csv"
 
-# (module, function, expected_filename)
-COLLECTORS = [
-    ("collectors.pubmed",          "run",        "pubmed_eppley.csv"),          # existing in your repo
-    ("collectors.crossref",        "run",        "crossref_works.csv"),         # new real
-    ("collectors.openalex",        "run",        "openalex_works.csv"),         # updated UA + paging
-    ("collectors.clinical_trials", "run",        "clinical_trials.csv"),        # new real
-    ("collectors.orcid",           "run_profiles","orcid_profiles.csv"),        # new real
-    ("collectors.orcid",           "run_works",  "orcid_works.csv"),            # best-effort
-    ("collectors.youtube",         "run",        "youtube_all.csv"),            # your existing script
-    ("collectors.wordpress",       "run",        "wordpress_posts.csv"),        # your existing script
+# Keep only WORKING collectors for now
+PIPELINE = [
+    "collectors.wordpress_posts",
+    "collectors.pubmed_eppley",
+    "collectors.crossref_works",
+    "collectors.openalex_works",
+    "collectors.youtube_all",
 ]
 
-def _import_callable(mod, fn):
-    try:
-        m = importlib.import_module(mod)
-        return getattr(m, fn)
-    except Exception:
-        print(f"[SKIP] {mod}.{fn} unavailable:\n{traceback.format_exc()}")
-        return None
+def run_collectors():
+    for mod in PIPELINE:
+        print(f"==> Running {mod}")
+        importlib.import_module(mod).run()
 
-def main():
-    print(f"[START] {datetime.utcnow().isoformat()}Z • OUT={OUT}")
-    print(f"[INFO ] EMAIL={'SET' if EMAIL else 'NOT SET'}")
-
-    for mod, fn_name, expected in COLLECTORS:
-        fn = _import_callable(mod, fn_name)
-        if not fn:
-            continue
-        print(f"[RUN  ] {mod}.{fn_name} → output/{expected}")
+def merge_csvs():
+    csvs = list(OUTPUT.glob("*.csv"))
+    frames = []
+    for p in csvs:
         try:
-            fn(OUT, EMAIL)  # every collector accepts (out_dir, email)
-            path = OUT / expected
-            if path.exists():
-                print(f"[OK   ] wrote {expected} ({path.stat().st_size} bytes)")
-            else:
-                print(f"[WARN ] {expected} missing after run")
+            df = pd.read_csv(p)
+            df["__file"] = p.name
+            frames.append(df)
         except Exception:
-            print(f"[FAIL ] {mod}.{fn_name}\n{traceback.format_exc()}")
-
-    print(f"[DONE ] {datetime.utcnow().isoformat()}Z")
+            continue
+    m = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    m.to_csv(MASTER, index=False)
+    print(f"Merged {len(csvs)} files into {MASTER} ({len(m)} rows)")
 
 if __name__ == "__main__":
-    main()
+    OUTPUT.mkdir(exist_ok=True, parents=True)
+    run_collectors()
+    merge_csvs()
