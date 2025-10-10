@@ -1,0 +1,154 @@
+name: Eppley Collector (nightly + manual)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 16:30 UTC ~= 09:30 America/Phoenix (Arizona doesn't observe DST)
+    - cron: "30 16 * * *"
+
+permissions:
+  contents: write        # needed to push branches/PRs
+  pull-requests: write   # needed to open/update PR
+
+concurrency:
+  group: collector
+  cancel-in-progress: false
+
+jobs:
+  run-collector:
+    runs-on: ubuntu-latest
+    env:
+      # Pass your YouTube key (set this in Settings → Secrets and variables → Actions)
+      YT_API_KEY: ${{ secrets.YT_API_KEY }}
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout (full history for rebase)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show repo status (debug)
+        run: |
+          git status
+          echo "Default branch: ${{ github.event.repository.default_branch }}"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (if any)
+        run: |
+          if [ -f requirements.txt ]; then
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+          else
+            echo "No requirements.txt, proceeding…"
+          fi
+
+      - name: Run collector (main.py)
+        run: |
+          python --version
+          ls -la
+          echo "Running unified collector…"
+          python main.py
+
+      - name: Summarize output
+        id: summarize
+        run: |
+          mkdir -p output || true
+          echo "Files in output/:"
+          ls -lh output || true
+
+          # Count lines for the master files (0 if missing)
+          CSV="output/eppley_master.csv"
+          JSON="output/eppley_master.json"
+          CSV_ROWS=0
+          if [ -f "$CSV" ]; then
+            # subtract header
+            CSV_ROWS=$( (wc -l < "$CSV") || echo 1 )
+            CSV_ROWS=$(( CSV_ROWS>0 ? CSV_ROWS-1 : 0 ))
+          fi
+          JSON_SIZE="$( [ -f "$JSON" ] && wc -c < "$JSON" || echo 0 )"
+
+          echo "csv_rows=$CSV_ROWS" >> $GITHUB_OUTPUT
+          echo "json_bytes=$JSON_SIZE" >> $GITHUB_OUTPUT
+          echo "CSV rows: $CSV_ROWS"
+          echo "JSON bytes: $JSON_SIZE"
+
+      - name: Configure Git (bot identity)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Create/update a long-lived bot branch for data updates
+      - name: Prepare bot branch
+        run: |
+          BOT_BRANCH="bot/scrape"
+          # Ensure we’re on default branch and up-to-date
+          git checkout ${{ github.event.repository.default_branch }}
+          git pull --rebase origin ${{ github.event.repository.default_branch }}
+          # Create or switch to bot branch
+          if git show-ref --verify --quiet refs/heads/$BOT_BRANCH; then
+            git checkout $BOT_BRANCH
+            git pull --rebase origin $BOT_BRANCH || true
+            # Rebase bot branch on latest default branch
+            git rebase ${{ github.event.repository.default_branch }} || true
+          else
+            git checkout -b $BOT_BRANCH
+          fi
+
+      - name: Stage changes (only /output)
+        id: stage
+        run: |
+          # Only commit data artifacts (safe for Pages)
+          git add -A output || true
+          # Skip if no changes
+          if git diff --cached --quiet; then
+            echo "changed=no" >> $GITHUB_OUTPUT
+            echo "No changes in output/. Nothing to commit."
+          else
+            echo "changed=yes" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit
+        if: steps.stage.outputs.changed == 'yes'
+        run: |
+          TS="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          git commit -m "data: refresh outputs (${TS})"
+
+      - name: Rebase bot branch (safety)
+        if: steps.stage.outputs.changed == 'yes'
+        run: |
+          git pull --rebase origin bot/scrape || true
+
+      - name: Push bot branch
+        if: steps.stage.outputs.changed == 'yes'
+        run: |
+          git push origin bot/scrape
+
+      - name: Open or update PR into main
+        if: steps.stage.outputs.changed == 'yes'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/scrape
+          base: ${{ github.event.repository.default_branch }}
+          title: "Data refresh: ${{ steps.summarize.outputs.csv_rows }} rows in master CSV"
+          body: |
+            Automated data refresh.
+            - **eppley_master.csv** rows: `${{ steps.summarize.outputs.csv_rows }}`
+            - **eppley_master.json** bytes: `${{ steps.summarize.outputs.json_bytes }}`
+
+            This PR was created by the nightly collector. If checks pass, you can merge, or keep the `automerge` label to merge automatically.
+          labels: |
+            automerge
+          draft: false
+          commit-message: "data: refresh outputs"
+
+      - name: Summary
+        run: |
+          echo "Collector finished."
+          echo "CSV rows: ${{ steps.summarize.outputs.csv_rows }}"
+          echo "JSON bytes: ${{ steps.summarize.outputs.json_bytes }}"
