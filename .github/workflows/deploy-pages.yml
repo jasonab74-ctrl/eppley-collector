@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: "15 10 * * *"  # ~03:15 AZ
+    - cron: "15 10 * * *"  # ~03:15 America/Phoenix (UTC-7)
 
 permissions:
   contents: read
@@ -19,28 +19,33 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
 
+      # --------- Collect all sources (continues even if one collector fails) ---------
       - name: Run collectors
         env:
-          EMAIL: ${{ vars.NCBI_EMAIL }}            # <— set this in Repo Settings → Actions → Variables
-          YT_API_KEY: ${{ secrets.YT_API_KEY }}     # <— set if you want YouTube API path
+          EMAIL: ${{ vars.NCBI_EMAIL }}          # REQUIRED (Settings → Actions → Variables)
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}  # Optional (Settings → Actions → Secrets)
         run: |
           set -e
           python main.py
 
-      - name: Enrich PubMed abstracts (optional but recommended)
+      # --------- Enrich PubMed with abstracts (optional but recommended) -------------
+      - name: Enrich PubMed abstracts
         env:
           EMAIL: ${{ vars.NCBI_EMAIL }}
           NCBI_TOOL: eppley-collector
@@ -49,11 +54,18 @@ jobs:
             python tools/augment_pubmed_abstracts.py
           fi
 
+      # --------- Merge/normalize → eppley_master.{csv,json} + status.json -----------
       - name: Merge to master
         run: |
           python tools/generate_master_csv.py
+          echo "Top of master:"
           head -n 3 output/eppley_master.csv || true
+          echo "Status:"
+          cat output/status.json || true
+          echo "Output listing:"
+          ls -lah output
 
+      # --------- Publish EVERYTHING (must include /output) --------------------------
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -66,5 +78,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
