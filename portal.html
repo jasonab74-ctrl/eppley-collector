@@ -1,49 +1,115 @@
-<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Eppley Knowledge Portal</title>
-<link rel="stylesheet" href="static/css/styles.css"/>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lunr/lunr.min.js"></script>
-</head><body>
-<header><h1>Dr. Barry Eppley — Knowledge Portal</h1><p class="sub">Search Q&amp;A, Publications, and Videos from CSVs in <code>output/</code>.</p></header>
-  <!-- Loading indicator shown while the CSVs are fetched and parsed.  Hidden once data has loaded. -->
-  <div id="loading">Loading data…</div>
-<main>
-  <div class="row"><input id="q" type="search" placeholder="Search (e.g., 'chin implant', 'forehead reduction')" />
-    <a class="btn" href="status.html">Status</a><a class="btn" href="index.html">Home</a></div>
-  <div class="tabs"><button class="tab active" data-target="qa">Q&amp;A</button><button class="tab" data-target="pubs">Publications</button><button class="tab" data-target="vids">Videos</button></div>
-  <section id="qa" class="panel active"><div id="qa-count" class="small"></div><div id="qa-list" class="cards"></div></section>
-  <section id="pubs" class="panel"><div id="pubs-count" class="small"></div><div id="pubs-list" class="cards"></div></section>
-  <section id="vids" class="panel"><div id="vids-count" class="small"></div><div id="vids-list" class="cards"></div></section>
-</main>
-<footer>Data updates nightly via GitHub Actions.</footer>
-<script>
-// Location of the various CSVs used by the portal.  The YouTube file name
-// here should match the output produced by collectors/youtube.py.
-const PATHS={qa:'output/wordpress_posts.csv', pubs:'output/pubmed_eppley.csv', vids:'output/youtube_all.csv'};
-const state={qa:[],pubs:[],vids:[],indexes:{}}; const csvToArray=o=>o.data&&o.data.length?o.data:[];
-function render(type,rows){const w=document.getElementById(type+'-list'),c=document.getElementById(type+'-count');w.innerHTML='';c.textContent=(rows.length||0).toLocaleString()+' result(s)';
-const f=document.createDocumentFragment(); rows.slice(0,500).forEach(r=>{const el=document.createElement('article'); el.className='card';
-if(type==='qa'){const title=r.title||'(no title)',url=r.url||'#',date=r.date||'',body=r.body? r.body.slice(0,280)+(r.body.length>280?'…':'') : '';
-el.innerHTML=`<h3><a href="${url}" target="_blank" rel="noopener">${title}</a></h3><div class="meta">${date}</div><p>${body}</p>`;}
-else if(type==='pubs'){const title=r.title||'(no title)',year=r.year||'',journal=r.journal||'',doi=r.doi? `<a href="https://doi.org/${r.doi}" target="_blank" rel="noopener">${r.doi}</a>` : '';
-el.innerHTML=`<h3>${title}</h3><div class="meta">${journal} ${year} ${doi}</div><p>${(r.abstract||'').slice(0,280)}${(r.abstract||'').length>280?'…':''}</p>`;}
-else{const title=r.title||'(no title)'; const url=r.webpage_url||r.url||(r.videoId? 'https://www.youtube.com/watch?v='+r.videoId : '#'); el.innerHTML=`<h3><a href="${url}" target="_blank" rel="noopener">${title}</a></h3>`;}
-f.appendChild(el);}); w.appendChild(f);}
-function buildIndex(type,rows){ if(!rows.length) return null; const fields=type==='qa'?['title','body','tags']:(type==='pubs'?['title','abstract','journal','year','doi']:['title']); 
-const idx=lunr(function(){this.ref('__id'); fields.forEach(f=>this.field(f)); rows.forEach((r,i)=>{ r.__id=type+'_'+i; this.add(r); });}); state.indexes[type]=idx; return idx; }
-function search(q){['qa','pubs','vids'].forEach(type=>{const rows=state[type]; if(!q){render(type,rows); return;} const idx=state.indexes[type]; if(!idx){render(type,rows); return;}
-try{const hits=idx.search(q); const byId=Object.fromEntries(rows.map(r=>[r.__id,r])); render(type, hits.map(h=>byId[h.ref]).filter(Boolean));}catch(e){render(type,rows);} });}
-async function loadCSV(path){return new Promise((res,rej)=>{Papa.parse(path,{header:true,download:true,skipEmptyLines:true,complete:r=>res(csvToArray(r)),error:rej});});}
-async function init(){const [qa,pubs,vids]=await Promise.all([loadCSV(PATHS.qa).catch(_=>[]),loadCSV(PATHS.pubs).catch(_=>[]),loadCSV(PATHS.vids).catch(_=>[])]);
-state.qa=qa; state.pubs=pubs; state.vids=vids; buildIndex('qa',qa); buildIndex('pubs',pubs); buildIndex('vids',vids); render('qa',qa); render('pubs',pubs); render('vids',vids);
-    // Hide the loading indicator now that data has been loaded
-    const loader=document.getElementById('loading'); if(loader) loader.classList.add('hidden');
-document.getElementById('q').addEventListener('input', e=>search(e.target.value.trim())); document.querySelectorAll('.tab').forEach(b=>{b.addEventListener('click',()=>{
-document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-b.classList.add('active'); document.getElementById(b.dataset.target).classList.add('active');});});}
-init();
-</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dr. Barry Eppley Research Dataset</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0d0d0d;
+      color: #eaeaea;
+      margin: 0;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-size: 1.9rem;
+      margin-bottom: 0.3rem;
+    }
+    p.subtitle {
+      color: #bbb;
+      margin-bottom: 1.5rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #111;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #222;
+    }
+    th {
+      background: #181818;
+      text-align: left;
+      font-weight: 600;
+      color: #ccc;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    .warn { color: #facc15; }
+    .ok { color: #22c55e; }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .footer { margin-top: 25px; color: #999; font-size: .9rem; }
+
+    /* Buttons */
+    .nbx-wrap{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 22px}
+    .nbx-btn{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:10px 14px;border-radius:10px;border:1px solid #2a2a2a;
+      background:#111;color:#fff;text-decoration:none;font-weight:600
+    }
+    .nbx-btn:hover{background:#161616}
+    .nbx-btn--primary{background:#2563eb;border-color:#2563eb}
+    .nbx-btn--primary:hover{filter:brightness(1.05)}
+    .nbx-note{font-size:.9rem;color:#b7b7b7;margin-top:4px}
+  </style>
+</head>
+<body>
+
+  <h1>Dr. Barry Eppley Research Dataset</h1>
+  <p class="subtitle">
+    Automatically collected and aggregated from public APIs:
+    publications, clinical trials, and video content. Updated nightly.
+  </p>
+
+  <div class="nbx-wrap">
+    <a class="nbx-btn" target="_blank" rel="noopener"
+       href="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/edit?usp=sharing">
+      📊 View Live Dataset (Google Sheet)
+    </a>
+
+    <a class="nbx-btn nbx-btn--primary" target="_blank" rel="noopener"
+       href="https://notebooklm.google.com/notebook/YOUR_NOTEBOOK_ID_HERE">
+      🧠 Open in NotebookLM
+    </a>
+
+    <a class="nbx-btn" target="_blank" rel="noopener"
+       href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/eppley_master.csv">
+      🗂️ Download master.csv
+    </a>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>File</th><th>Description</th><th>Rows</th><th>Status</th><th>Download</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>wordpress_posts.csv</td><td>All blog & Q&A posts authored by Dr. Eppley</td><td>0</td><td class="warn">warn</td><td><a href="output/wordpress_posts.csv">CSV</a></td></tr>
+      <tr><td>pubmed_eppley.csv</td><td>Peer-reviewed PubMed research articles</td><td>119</td><td class="warn">warn</td><td><a href="output/pubmed_eppley.csv">CSV</a></td></tr>
+      <tr><td>crossref_works.csv</td><td>Crossref-indexed scholarly works</td><td>0</td><td class="warn">warn</td><td><a href="output/crossref_works.csv">CSV</a></td></tr>
+      <tr><td>openalex_works.csv</td><td>OpenAlex-identified research works</td><td>0</td><td class="warn">warn</td><td><a href="output/openalex_works.csv">CSV</a></td></tr>
+      <tr><td>clinical_trials.csv</td><td>ClinicalTrials.gov studies related to Eppley</td><td>0</td><td class="warn">warn</td><td><a href="output/clinical_trials.csv">CSV</a></td></tr>
+      <tr><td>orcid_profiles.csv</td><td>ORCID public researcher profiles</td><td>0</td><td class="warn">warn</td><td><a href="output/orcid_profiles.csv">CSV</a></td></tr>
+      <tr><td>orcid_works.csv</td><td>ORCID-linked publication data</td><td>0</td><td class="warn">warn</td><td><a href="output/orcid_works.csv">CSV</a></td></tr>
+      <tr><td>youtube_all.csv</td><td>YouTube videos mentioning or uploaded by Dr. Eppley</td><td>1345</td><td class="ok">ok</td><td><a href="output/youtube_all.csv">CSV</a></td></tr>
+      <tr><td>eppley_master.csv</td><td>Unified master dataset (merged from all sources)</td><td>1464</td><td class="ok">ok</td><td><a href="output/eppley_master.csv">CSV</a></td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Unified dataset: <a href="output/eppley_master.csv">output/eppley_master.csv</a><br>
+    Status file: <a href="output/status.json">output/status.json</a>
+  </div>
+
+  <div class="nbx-note">
+    Tip: make sure your Google Sheet sharing is set to <em>“Anyone with the link: Viewer”</em>.
+    The NotebookLM link will work after you paste your notebook URL above.
+  </div>
+
+</body>
+</html>
