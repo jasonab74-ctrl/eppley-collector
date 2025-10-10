@@ -25,3 +25,7 @@ input[type="search"]{flex:1;min-width:240px;padding:10px 12px;border:1px solid v
 .panel{display:none}.panel.active{display:block}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
 .meta{color:#666;font-size:12px;margin-bottom:6px}
+
+/* Simple loading indicator.  This is hidden once data has finished loading. */
+#loading{display:block;text-align:center;margin:20px;font-size:13px;color:var(--muted)}
+.hidden{display:none}
