@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Eppley Research Dataset</title>
+<meta name="description" content="Unified dataset of Dr. Barry Eppley's publications, videos, and related materials." />
+<style>
+:root{
+  --bg:#0c0d11;--panel:#12141c;--ink:#e9eef7;--muted:#a8b3c7;
+  --brand:#53d3a1;--link:#8bd8ff;--good:#2ecc71;--warn:#f39c12;--bad:#e74c3c;
+}
+html,body{background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:0}
+.wrap{max-width:960px;margin:auto;padding:24px}
+h1{font-weight:800;letter-spacing:.2px;margin:0 0 8px}
+p.lead{color:var(--muted);margin:0 0 24px}
+.card{background:var(--panel);border:1px solid #1f2230;border-radius:12px;padding:20px;margin-bottom:18px}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+table{width:100%;border-collapse:collapse;background:#171923;border-radius:12px;overflow:hidden}
+th,td{padding:10px 12px;border-bottom:1px solid #222632}
+th{text-align:left;color:#b9c7dc;font-weight:800;background:#141723}
+td.small{color:var(--muted)}
+.status{font-weight:700}
+.ok{color:var(--good)}.warn{color:var(--warn)}.err{color:var(--bad)}
+.foot{color:var(--muted);margin-top:12px;font-size:14px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Dr. Barry Eppley Research Dataset</h1>
+<p class="lead">Automatically collected and aggregated from public APIs: publications, clinical trials, and video content. Updated nightly.</p>
+
+<div class="card">
+  <h3>Dataset Overview</h3>
+  <table id="table">
+    <thead>
+      <tr><th>File</th><th>Description</th><th>Rows</th><th>Status</th><th>Download</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <p class="foot">Unified dataset: <a href="output/eppley_master.csv" target="_blank">output/eppley_master.csv</a></p>
+</div>
+
+<script>
+const FILES = [
+  {name:"wordpress_posts.csv",desc:"All blog & Q&A posts authored by Dr. Eppley",min:50},
+  {name:"pubmed_eppley.csv",desc:"Peer-reviewed PubMed research articles",min:150},
+  {name:"crossref_works.csv",desc:"Crossref-indexed scholarly works",min:1000},
+  {name:"openalex_works.csv",desc:"OpenAlex-identified research works",min:50},
+  {name:"clinical_trials.csv",desc:"ClinicalTrials.gov studies related to Eppley",min:1},
+  {name:"orcid_profiles.csv",desc:"ORCID public researcher profiles",min:1},
+  {name:"orcid_works.csv",desc:"ORCID-linked publication data",min:1},
+  {name:"youtube_all.csv",desc:"YouTube videos mentioning or uploaded by Dr. Eppley",min:20},
+  {name:"eppley_master.csv",desc:"Unified master dataset (merged from all sources)",min:400}
+];
+
+async function countRows(url){
+  try{
+    const r = await fetch(url,{cache:'no-store'});
+    if(!r.ok) return {rows:0,ok:false};
+    const t = await r.text();
+    const n = Math.max(0,t.split(/\r?\n/).filter(Boolean).length-1);
+    return {rows:n,ok:true};
+  }catch{return {rows:0,ok:false};}
+}
+(async()=>{
+  const tb=document.querySelector('#table tbody');
+  for(const f of FILES){
+    const url="output/"+f.name;
+    const {rows,ok}=await countRows(url);
+    const stat=ok?(rows>=f.min?`<span class='ok'>ok</span>`:`<span class='warn'>warn</span>`):`<span class='err'>missing</span>`;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${f.name}</td><td class="small">${f.desc}</td><td>${rows}</td><td class='status'>${stat}</td><td><a href="${url}" target="_blank">CSV</a></td>`;
+    tb.appendChild(tr);
+  }
+})();
+</script>
+</div>
+</body>
+</html>
