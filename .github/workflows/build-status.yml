@@ -1,31 +1,3 @@
-name: Build Data Status
-
-on:
-  schedule:
-    - cron: "20 3 * * *"
-    - cron: "20 5 * * *"
-    - cron: "20 7 * * *"
-  workflow_dispatch: {}
-  workflow_run:
-    workflows: ["Run Eppley Scraper (Resumable, Chunked, Safe)"]
-    types: [completed]
-
-permissions:
-  contents: write
-  issues: write
-
-jobs:
-  build-status:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: Generate output/status.json (auto-discover CSVs)
         run: |
           python - <<'PY'
@@ -49,7 +21,8 @@ jobs:
           label_map = {
               "wordpress_posts.csv":"All blog+Q&A posts",
               "pubmed_eppley.csv":"Publications (PubMed)",
-              "youtube_metadata.csv":"YouTube metadata",
+              # Use youtube_all.csv instead of youtube_metadata.csv to reflect the new collector output
+              "youtube_all.csv":"YouTube metadata",
               "crossref_works.csv":"Publications (Crossref)",
               "openalex_works.csv":"Publications & metrics (OpenAlex)",
               "clinical_trials.csv":"ClinicalTrials.gov studies",
@@ -93,56 +66,3 @@ jobs:
           with open(status_path,"w",encoding="utf-8") as f: json.dump(out, f, ensure_ascii=False, indent=2)
           print(json.dumps(out, indent=2))
           PY
-
-      - name: Write health.json (ok)
-        run: |
-          mkdir -p output
-          echo '{"last_status":"ok","generated_at":"'"$(date -u +%FT%TZ)"'"}' > output/health.json
-
-      - name: Generate manifest.json (checksums)
-        run: |
-          python - <<'PY'
-          import hashlib, json, glob, os, time
-          m=[]
-          for p in sorted(glob.glob("output/*.csv")):
-              h=hashlib.sha256()
-              with open(p,'rb') as f:
-                  for chunk in iter(lambda:f.read(1<<20), b''): h.update(chunk)
-              m.append({"name":os.path.basename(p),"sha256":h.hexdigest(),"bytes":os.path.getsize(p)})
-          out={"generated_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"files":m}
-          os.makedirs("output", exist_ok=True)
-          with open("output/manifest.json","w") as f: json.dump(out,f,indent=2)
-          PY
-
-      - name: Commit status + health + manifest
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add output/status.json output/health.json output/manifest.json
-          git commit -m "Update data status & health & manifest" || echo "No changes"
-          git push
-
-      - name: Create issue on failure
-        if: failure()
-        uses: dacbd/create-issue-action@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: "🔴 Status build failed — ${{ github.workflow }} @ run ${{ github.run_id }}"
-          body: |
-            **Workflow:** ${{ github.workflow }}
-            **Run:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            **Branch:** ${{ github.ref }}
-
-            The status/manifest job encountered an error. Please review the run logs.
-            (This issue was auto-created by the workflow.)
-
-      - name: Mark health failed (if any step failed)
-        if: failure()
-        run: |
-          mkdir -p output
-          echo '{"last_status":"failed","generated_at":"'"$(date -u +%FT%TZ)"'"}' > output/health.json
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add output/health.json
-          git commit -m "health: failed" || true
-          git push || true
