@@ -3,7 +3,7 @@ name: Collect & Build
 on:
   workflow_dispatch:
   schedule:
-    - cron: "35 6 * * *"  # daily
+    - cron: "35 6 * * *"  # daily UTC
 
 permissions:
   contents: write
@@ -11,7 +11,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,30 +25,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml
 
-      - name: Export env
-        env:
-          NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
-          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+      - name: Run collectors + merge + status
         run: |
-          echo "NCBI_EMAIL=${NCBI_EMAIL}" >> $GITHUB_ENV
-          echo "YT_API_KEY=${YT_API_KEY}" >> $GITHUB_ENV
-
-      - name: Run collectors
-        run: python main.py
-
-      - name: Enrich fulltext
-        run: python tools/enrich_fulltext.py
-
-      - name: Build NotebookLM corpus
-        run: python tools/make_corpus.py
-
-      - name: Write status.json
-        run: python tools/write_status.py
+          python main.py
+          python tools/write_status.py
 
       - name: Commit artifacts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/*.csv output/*.jsonl output/expanded/* output/status.json || true
-          git commit -m "Update outputs (collect + enrich + corpus + status)" || echo "No changes"
+          git add output/* || true
+          git commit -m "Update outputs" || echo "No changes"
           git push
