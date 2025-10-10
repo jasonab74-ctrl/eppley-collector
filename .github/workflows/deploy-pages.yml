@@ -1,0 +1,108 @@
+name: Build & Deploy Eppley Collector (GitHub Pages)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  schedule:
+    # Nightly, 3:15am Phoenix (America/Phoenix is UTC-7 with no DST; adjust if you prefer)
+    - cron: "15 10 * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+
+      # ---- Collect data (safe to skip failures so the site still deploys) ----
+      - name: Run collectors
+        env:
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}  # set this only if using the API path
+        run: |
+          set -e
+          python main.py || true
+          # If you maintain separate scripts, you can call them here instead:
+          # python youtube_collect.py || true
+          # python openalex_collect.py || true
+          # python s2_collect.py || true
+
+      # ---- Make sure we have a unified master dataset ----
+      - name: Merge to master.csv/json
+        run: |
+          if [ -f generate_master_csv.py ]; then
+            python generate_master_csv.py --output-dir ./output
+          else
+            # Fallback: if repo uses eppley_master naming via main.py, ensure both names exist
+            if [ -f output/eppley_master.csv ] && [ ! -f output/master.csv ]; then
+              cp output/eppley_master.csv output/master.csv || true
+            fi
+            if [ -f output/eppley_master.json ] && [ ! -f output/master.json ]; then
+              cp output/eppley_master.json output/master.json || true
+            fi
+          fi
+          ls -la output || true
+
+      # ---- (Optional) Bootstrap CSV from PubMed JSONL so UI isn't empty on first run ----
+      - name: Bootstrap pubmed_eppley.csv from JSONL (optional)
+        run: |
+          python - << 'PY'
+          import csv, json, pathlib
+          p = pathlib.Path("output/pubmed_eppley.jsonl")
+          if p.exists():
+              rows=[]
+              with p.open(encoding="utf-8") as f:
+                  for line in f:
+                      j=json.loads(line)
+                      rows.append({
+                          "title": j.get("title",""),
+                          "abstract": "",
+                          "journal": j.get("journal",""),
+                          "year": j.get("year",""),
+                          "authors": j.get("authors",""),
+                          "doi": j.get("doi",""),
+                          "url": j.get("url","")
+                      })
+              out = pathlib.Path("output/pubmed_eppley.csv")
+              if not out.exists() or sum(1 for _ in out.open())<=1:
+                  with out.open("w", newline="", encoding="utf-8") as f2:
+                      w=csv.DictWriter(f2, fieldnames=["title","abstract","journal","year","authors","doi","url"])
+                      w.writeheader(); w.writerows(rows)
+                  print(f"Bootstrapped {len(rows)} rows -> {out}")
+          PY
+
+      # ---- Prepare Pages artifact (must include /output for the browser UI) ----
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .  # upload the entire repo root so /output is served at /output/*
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
