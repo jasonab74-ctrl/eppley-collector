@@ -1,0 +1,13 @@
+{
+  "id": "stable hash across source+title+date+url",
+  "source": "wordpress | pubmed | crossref | openalex | youtube",
+  "title": "string",
+  "date": "ISO date or year",
+  "authors": "semicolon-separated string",
+  "url": "canonical landing page",
+  "doi": "string (when available)",
+  "pmid": "string (when available)",
+  "abstract": "PubMed abstract or similar summary",
+  "summary": "WordPress feed summary or short note",
+  "body_text": "extracted readable page text for articles and posts (may be empty)"
+}
