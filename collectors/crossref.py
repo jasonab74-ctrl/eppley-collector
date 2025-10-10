@@ -1,13 +1,12 @@
 """
-Crossref collector: writes output/crossref_works.csv
+Crossref collector → output/crossref_works.csv
 Docs: https://api.crossref.org/swagger-ui/index.html
 """
 import csv, time, requests
 
-HEADERS = lambda email: {
-    "User-Agent": f"eppley-collector/1.0 (mailto:{email})" if email else "eppley-collector/1.0",
-    "Accept": "application/json",
-}
+def _headers(email: str):
+    ua = f"eppley-collector/1.0 (mailto:{email})" if email else "eppley-collector/1.0"
+    return {"User-Agent": ua, "Accept": "application/json"}
 
 def run(out_dir, email=""):
     out_path = out_dir / "crossref_works.csv"
@@ -17,7 +16,7 @@ def run(out_dir, email=""):
         "select": "DOI,title,issued,author,container-title,type,URL",
         "mailto": email or None,
     }
-    r = requests.get("https://api.crossref.org/works", headers=HEADERS(email), params=params, timeout=30)
+    r = requests.get("https://api.crossref.org/works", headers=_headers(email), params=params, timeout=30)
     r.raise_for_status()
     items = r.json().get("message", {}).get("items", [])
 
@@ -25,13 +24,12 @@ def run(out_dir, email=""):
         w = csv.DictWriter(f, fieldnames=["title","abstract","journal","year","authors","doi","url","type"])
         w.writeheader()
         for it in items:
-            title = " ".join(it.get("title") or [])[:500]
-            year = ""
-            issued = it.get("issued", {}).get("date-parts", [])
-            if issued and issued[0]:
-                year = str(issued[0][0])
-            authors = "; ".join(filter(None, [f"{a.get('family','')}, {a.get('given','')}".strip(', ' )
-                                   for a in (it.get("author") or [])]))
+            title_list = it.get("title") or []
+            title = " ".join(title_list)[:500]
+            date_parts = (it.get("issued", {}) or {}).get("date-parts", [])
+            year = str(date_parts[0][0]) if date_parts and date_parts[0] else ""
+            authors = "; ".join([", ".join(filter(None, [a.get("family",""), a.get("given","")])).strip(", ")
+                                 for a in (it.get("author") or [])])
             w.writerow({
                 "title": title,
                 "abstract": "",
@@ -42,4 +40,4 @@ def run(out_dir, email=""):
                 "url": it.get("URL",""),
                 "type": it.get("type",""),
             })
-    time.sleep(0.3)
+    time.sleep(0.2)
