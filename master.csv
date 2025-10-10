@@ -1,0 +1,131 @@
+"""
+Generate a unified master CSV from multiple CSV sources.
+
+This script reads several CSV files from a specified ``output`` directory
+and merges them into a single ``master.csv`` file. It also writes
+an accompanying JSON file for convenience.
+
+Each input CSV may have different column names; this script
+normalises them into a common schema suitable for downstream analysis.
+"""
+
+import csv
+import json
+import argparse
+import pathlib
+from typing import Dict, Iterable, List
+
+def normalize_row(source: str, row: Dict[str, str]) -> Dict[str, str]:
+    """Normalise a raw row from any collector into a standard schema."""
+    return {
+        "source": source,
+        "title": row.get("title")
+            or row.get("BriefTitle")
+            or row.get("display_name")
+            or "",
+        # limit summary/abstract/description to prevent extremely long cells
+        "summary": (row.get("abstract")
+            or row.get("description")
+            or row.get("content")
+            or "")[:2000],
+        "date": row.get("year")
+            or row.get("publication_date")
+            or row.get("StartDate")
+            or "",
+        "link": row.get("url")
+            or row.get("openalex_url")
+            or row.get("link")
+            or "",
+        "authors": row.get("authors")
+            or row.get("authorships")
+            or row.get("author")
+            or row.get("given")
+            or "",
+        "journal": row.get("journal")
+            or row.get("host_venue_name")
+            or row.get("institution")
+            or "",
+        "type": row.get("type") or row.get("type_display_name") or "",
+        "keywords": row.get("concepts") or row.get("tags") or "",
+    }
+
+def collect_csv_files(output_dir: pathlib.Path, allowed: Iterable[str]) -> List[pathlib.Path]:
+    """Return a list of CSV files in ``output_dir`` that are allowed to be merged."""
+    files: List[pathlib.Path] = []
+    for csv_name in allowed:
+        path = output_dir / csv_name
+        if path.exists() and path.is_file():
+            files.append(path)
+    return files
+
+def merge_to_master(output_dir: pathlib.Path) -> int:
+    """Merge all allowed CSVs into ``master.csv`` and ``master.json``."""
+    allowed_files = {
+        "wordpress_posts.csv",
+        "pubmed_eppley.csv",
+        "crossref_works.csv",
+        "openalex_works.csv",
+        "clinical_trials.csv",
+        "orcid_profiles.csv",
+        "orcid_works.csv",
+        "youtube_all.csv",
+        # Additional optional sources can be added here as needed.
+        "semanticscholar_works.csv",
+    }
+
+    master_csv_path = output_dir / "master.csv"
+    master_json_path = output_dir / "master.json"
+    files_to_merge = collect_csv_files(output_dir, allowed_files)
+
+    fieldnames = [
+        "source",
+        "title",
+        "summary",
+        "date",
+        "link",
+        "authors",
+        "journal",
+        "type",
+        "keywords",
+    ]
+    merged_rows: List[Dict[str, str]] = []
+
+    with master_csv_path.open("w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        for file_path in files_to_merge:
+            try:
+                with file_path.open(newline="", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for raw in reader:
+                        row = normalize_row(file_path.name, raw)
+                        writer.writerow(row)
+                        merged_rows.append(row)
+            except Exception as exc:
+                print(f"Warning: skipping {file_path.name} due to error: {exc}")
+
+    # Write a JSON list of rows for convenience
+    try:
+        with master_json_path.open("w", encoding="utf-8") as json_file:
+            json.dump(merged_rows, json_file, ensure_ascii=False, indent=2)
+    except Exception as exc:
+        print(f"Warning: could not write JSON file: {exc}")
+
+    return len(merged_rows)
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate a unified master CSV from multiple sources")
+    parser.add_argument(
+        "--output-dir",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).resolve().parent / "output",
+        help="Directory containing the input CSV files and where master.csv will be written",
+    )
+    args = parser.parse_args()
+    output_dir = args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    count = merge_to_master(output_dir)
+    print(f"Merged {count} rows into {output_dir}/master.csv and master.json")
+
+if __name__ == "__main__":
+    main()
