@@ -54,6 +54,12 @@ jobs:
           echo "Running unified collector…"
           python main.py
 
+      # NEW STEP: convert CSVs into Markdown for NotebookLM
+      - name: Convert CSVs to NotebookLM Markdown
+        run: |
+          # Create markdown exports under output/notebooklm
+          python tools/convert_for_notebooklm.py
+
       - name: Summarize output
         id: summarize
         run: |
@@ -140,6 +146,7 @@ jobs:
             Automated data refresh.
             - **eppley_master.csv** rows: `${{ steps.summarize.outputs.csv_rows }}`
             - **eppley_master.json** bytes: `${{ steps.summarize.outputs.json_bytes }}`
+            - **NotebookLM markdown exports** have been regenerated.
 
             This PR was created by the nightly collector. If checks pass, you can merge, or keep the `automerge` label to merge automatically.
           labels: |
