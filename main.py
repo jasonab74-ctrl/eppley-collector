@@ -1,18 +1,14 @@
-# Orchestrates the collectors and merges to eppley_master.csv
-
 import importlib, pandas as pd
 from pathlib import Path
 
 OUTPUT = Path("output")
+OUTPUT.mkdir(parents=True, exist_ok=True)
 MASTER = OUTPUT / "eppley_master.csv"
 
-# Keep only WORKING collectors for now
 PIPELINE = [
     "collectors.wordpress_posts",
-    "collectors.pubmed_eppley",
     "collectors.crossref_works",
     "collectors.openalex_works",
-    "collectors.youtube_all",
 ]
 
 def run_collectors():
@@ -26,15 +22,16 @@ def merge_csvs():
     for p in csvs:
         try:
             df = pd.read_csv(p)
+            if len(df) == 0:  # keep headers if empty, but still merge
+                df = df.copy()
             df["__file"] = p.name
             frames.append(df)
-        except Exception:
-            continue
+        except Exception as e:
+            print(f"[merge] skip {p.name}: {e}")
     m = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
     m.to_csv(MASTER, index=False)
-    print(f"Merged {len(csvs)} files into {MASTER} ({len(m)} rows)")
+    print(f"[merge] wrote {MASTER} ({len(m)} rows)")
 
 if __name__ == "__main__":
-    OUTPUT.mkdir(exist_ok=True, parents=True)
     run_collectors()
     merge_csvs()
