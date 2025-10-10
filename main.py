@@ -57,8 +57,25 @@ def _merge_all():
     """Merge every output/*.csv into master CSV + JSON."""
     master_csv = OUT / "eppley_master.csv"
     master_json = OUT / "eppley_master.json"
-    files = sorted(OUT.glob("*.csv"))
-    all_rows = []
+    # Only merge the CSVs that correspond to our collectors.  In the original
+    # repository the ``output`` directory contained other CSVs (e.g. youtube_metadata.csv)
+    # unrelated to the unified Eppley dataset.  Merging every CSV indiscriminately
+    # led to spurious rows in ``eppley_master.csv``.  Restrict the merge to
+    # known files produced by our pipeline.
+    allowed = {
+        "wordpress_posts.csv",
+        "pubmed_eppley.csv",
+        "crossref_works.csv",
+        "openalex_works.csv",
+        "clinical_trials.csv",
+        "orcid_profiles.csv",
+        "orcid_works.csv",
+        "youtube_all.csv",
+        # include semanticscholar_works.csv if it exists; we treat it as optional
+        "semanticscholar_works.csv",
+    }
+    files = [f for f in sorted(OUT.glob("*.csv")) if f.name in allowed]
+    all_rows: list = []
 
     fieldnames = ["source","title","summary","date","link","authors","journal","type","keywords"]
 
