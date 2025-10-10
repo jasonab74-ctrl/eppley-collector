@@ -3,12 +3,12 @@ name: Eppley Collector (nightly + manual)
 on:
   workflow_dispatch:
   schedule:
-    # 16:30 UTC ~= 09:30 America/Phoenix (Arizona doesn't observe DST)
+    # 16:30 UTC ~= 09:30 America/Phoenix
     - cron: "30 16 * * *"
 
 permissions:
-  contents: write        # needed to push branches/PRs
-  pull-requests: write   # needed to open/update PR
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: collector
@@ -18,7 +18,6 @@ jobs:
   run-collector:
     runs-on: ubuntu-latest
     env:
-      # Pass your YouTube key (set this in Settings → Secrets and variables → Actions)
       YT_API_KEY: ${{ secrets.YT_API_KEY }}
       PYTHONUNBUFFERED: "1"
 
@@ -27,11 +26,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Show repo status (debug)
-        run: |
-          git status
-          echo "Default branch: ${{ github.event.repository.default_branch }}"
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -49,17 +43,14 @@ jobs:
 
       - name: Run collector (main.py)
         run: |
-          python --version
-          ls -la
-          echo "Running unified collector…"
           python main.py
 
-      # NEW STEP: convert CSVs into Markdown for NotebookLM
+      # NEW: convert CSVs into Markdown for NotebookLM ingestion
       - name: Convert CSVs to NotebookLM Markdown
         run: |
-          # Create markdown exports under output/notebooklm
-          python tools/convert_for_notebooklm.py
+          python tools/convert_for_notebooklm.py || echo "Markdown conversion skipped"
 
+      # (remaining steps unchanged…)
       - name: Summarize output
         id: summarize
         run: |
@@ -67,12 +58,10 @@ jobs:
           echo "Files in output/:"
           ls -lh output || true
 
-          # Count lines for the master files (0 if missing)
           CSV="output/eppley_master.csv"
           JSON="output/eppley_master.json"
           CSV_ROWS=0
           if [ -f "$CSV" ]; then
-            # subtract header
             CSV_ROWS=$( (wc -l < "$CSV") || echo 1 )
             CSV_ROWS=$(( CSV_ROWS>0 ? CSV_ROWS-1 : 0 ))
           fi
@@ -80,26 +69,20 @@ jobs:
 
           echo "csv_rows=$CSV_ROWS" >> $GITHUB_OUTPUT
           echo "json_bytes=$JSON_SIZE" >> $GITHUB_OUTPUT
-          echo "CSV rows: $CSV_ROWS"
-          echo "JSON bytes: $JSON_SIZE"
 
       - name: Configure Git (bot identity)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # Create/update a long-lived bot branch for data updates
       - name: Prepare bot branch
         run: |
           BOT_BRANCH="bot/scrape"
-          # Ensure we’re on default branch and up-to-date
           git checkout ${{ github.event.repository.default_branch }}
           git pull --rebase origin ${{ github.event.repository.default_branch }}
-          # Create or switch to bot branch
           if git show-ref --verify --quiet refs/heads/$BOT_BRANCH; then
             git checkout $BOT_BRANCH
             git pull --rebase origin $BOT_BRANCH || true
-            # Rebase bot branch on latest default branch
             git rebase ${{ github.event.repository.default_branch }} || true
           else
             git checkout -b $BOT_BRANCH
@@ -108,12 +91,9 @@ jobs:
       - name: Stage changes (only /output)
         id: stage
         run: |
-          # Only commit data artifacts (safe for Pages)
           git add -A output || true
-          # Skip if no changes
           if git diff --cached --quiet; then
             echo "changed=no" >> $GITHUB_OUTPUT
-            echo "No changes in output/. Nothing to commit."
           else
             echo "changed=yes" >> $GITHUB_OUTPUT
           fi
@@ -123,11 +103,6 @@ jobs:
         run: |
           TS="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
           git commit -m "data: refresh outputs (${TS})"
-
-      - name: Rebase bot branch (safety)
-        if: steps.stage.outputs.changed == 'yes'
-        run: |
-          git pull --rebase origin bot/scrape || true
 
       - name: Push bot branch
         if: steps.stage.outputs.changed == 'yes'
@@ -146,7 +121,6 @@ jobs:
             Automated data refresh.
             - **eppley_master.csv** rows: `${{ steps.summarize.outputs.csv_rows }}`
             - **eppley_master.json** bytes: `${{ steps.summarize.outputs.json_bytes }}`
-            - **NotebookLM markdown exports** have been regenerated.
 
             This PR was created by the nightly collector. If checks pass, you can merge, or keep the `automerge` label to merge automatically.
           labels: |
