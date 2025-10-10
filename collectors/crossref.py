@@ -1,57 +1,45 @@
 """
-collectors/crossref.py
-----------------------
-
-Placeholder Crossref collector.  The original repository referenced a
-``collectors.crossref`` module to gather works indexed by Crossref.  Since
-no such module was provided and the sandbox environment does not allow
-external HTTP requests, this file implements a stub ``run_crossref``
-function that simply writes an empty CSV with appropriate headers and
-returns zero.
-
-Should you wish to add a real Crossref collection later, update the
-``run_crossref`` function to fetch data from the Crossref API and write
-records to the CSV.  The unified pipeline in ``main.py`` expects the
-function to return the number of records written.
+Crossref collector: writes output/crossref_works.csv
+Docs: https://api.crossref.org/swagger-ui/index.html
 """
+import csv, time, requests
 
-import csv
-import os
-from typing import List
+HEADERS = lambda email: {
+    "User-Agent": f"eppley-collector/1.0 (mailto:{email})" if email else "eppley-collector/1.0",
+    "Accept": "application/json",
+}
 
+def run(out_dir, email=""):
+    out_path = out_dir / "crossref_works.csv"
+    params = {
+        "query.author": "Eppley",
+        "rows": 1000,
+        "select": "DOI,title,issued,author,container-title,type,URL",
+        "mailto": email or None,
+    }
+    r = requests.get("https://api.crossref.org/works", headers=HEADERS(email), params=params, timeout=30)
+    r.raise_for_status()
+    items = r.json().get("message", {}).get("items", [])
 
-def run_crossref(out_path: str = "output/crossref_works.csv") -> int:
-    """Write an empty Crossref works CSV.
-
-    The CSV will include a header row with the fields ``title``, ``year``,
-    ``journal``, ``authors``, ``doi`` and ``url``.  No data rows are
-    produced.
-
-    Parameters
-    ----------
-    out_path : str
-        Destination path for the CSV.  Defaults to ``output/crossref_works.csv``.
-
-    Returns
-    -------
-    int
-        Always returns ``0`` because no records are written.
-    """
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    fieldnames: List[str] = [
-        "title",
-        "year",
-        "journal",
-        "authors",
-        "doi",
-        "url",
-    ]
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-    print(f"[crossref] wrote 0 rows -> {out_path}")
-    return 0
-
-
-if __name__ == "__main__":
-    run_crossref()
+    with out_path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["title","abstract","journal","year","authors","doi","url","type"])
+        w.writeheader()
+        for it in items:
+            title = " ".join(it.get("title") or [])[:500]
+            year = ""
+            issued = it.get("issued", {}).get("date-parts", [])
+            if issued and issued[0]:
+                year = str(issued[0][0])
+            authors = "; ".join(filter(None, [f"{a.get('family','')}, {a.get('given','')}".strip(', ' )
+                                   for a in (it.get("author") or [])]))
+            w.writerow({
+                "title": title,
+                "abstract": "",
+                "journal": " ".join(it.get("container-title") or []),
+                "year": year,
+                "authors": authors,
+                "doi": it.get("DOI",""),
+                "url": it.get("URL",""),
+                "type": it.get("type",""),
+            })
+    time.sleep(0.3)
