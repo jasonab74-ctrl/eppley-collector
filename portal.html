@@ -5,99 +5,155 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dr. Barry Eppley Research Dataset</title>
   <style>
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: #0d0d0d;
-      color: #eaeaea;
-      margin: 0;
-      padding: 40px 20px;
+    :root{
+      --bg:#0d0d0d; --panel:#111; --muted:#bbb; --line:#222;
+      --ok:#22c55e; --warn:#facc15; --link:#60a5fa; --btn:#111; --btnp:#2563eb;
     }
-    h1 {
-      font-size: 1.9rem;
-      margin-bottom: 0.3rem;
+    *{box-sizing:border-box}
+    body{
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;
+      background:var(--bg); color:#eaeaea; margin:0; padding:40px 20px;
     }
-    p.subtitle {
-      color: #bbb;
-      margin-bottom: 1.5rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #111;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    th, td {
-      padding: 10px 14px;
-      border-bottom: 1px solid #222;
-    }
-    th {
-      background: #181818;
-      text-align: left;
-      font-weight: 600;
-      color: #ccc;
-    }
-    tr:last-child td {
-      border-bottom: none;
-    }
-    .warn { color: #facc15; }
-    .ok { color: #22c55e; }
-    a { color: #60a5fa; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .footer { margin-top: 25px; color: #999; font-size: .9rem; }
+    h1{font-size:1.9rem;margin:.2rem 0 .3rem}
+    p.subtitle{color:var(--muted);margin:.1rem 0 1.2rem}
+    .stamp{color:#9aa0a6;font-size:.95rem;margin:.2rem 0 1rem}
+    .stamp strong{color:#eaeaea}
 
-    /* Buttons */
-    .nbx-wrap{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 22px}
+    .nbx-wrap{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 22px}
     .nbx-btn{
       display:inline-flex;align-items:center;gap:8px;
       padding:10px 14px;border-radius:10px;border:1px solid #2a2a2a;
-      background:#111;color:#fff;text-decoration:none;font-weight:600
+      background:var(--btn);color:#fff;text-decoration:none;font-weight:600
     }
     .nbx-btn:hover{background:#161616}
-    .nbx-btn--primary{background:#2563eb;border-color:#2563eb}
+    .nbx-btn--primary{background:var(--btnp);border-color:var(--btnp)}
     .nbx-btn--primary:hover{filter:brightness(1.05)}
     .nbx-note{font-size:.9rem;color:#b7b7b7;margin-top:4px}
+
+    table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:10px;overflow:hidden}
+    th,td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{background:#181818;text-align:left;font-weight:600;color:#ccc}
+    tr:last-child td{border-bottom:none}
+    .warn{color:var(--warn);font-weight:600}
+    .ok{color:var(--ok);font-weight:600}
+    a{color:var(--link);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .footer{margin-top:22px;color:#999;font-size:.92rem}
+    code.inline{background:#141414;border:1px solid #2a2a2a;padding:.1rem .35rem;border-radius:6px}
+
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
   </style>
 </head>
 <body>
 
   <h1>Dr. Barry Eppley Research Dataset</h1>
   <p class="subtitle">
-    Automatically collected and aggregated from public APIs:
-    publications, clinical trials, and video content. Updated nightly.
+    Automatically collected and aggregated from public sources: publications, clinical trials, and video content. Updated nightly.
   </p>
 
+  <!-- Last updated stamp (filled by JS via output/status.json) -->
+  <div class="stamp">
+    <span>Last updated:</span> <strong id="lastUpdated">—</strong>
+    <span class="mono">•</span>
+    <span>Total records:</span> <strong id="totalRecords">—</strong>
+  </div>
+
   <div class="nbx-wrap">
+    <!-- 1) View Live Dataset (Google Sheet) — REPLACE YOUR_SHEET_ID_HERE -->
     <a class="nbx-btn" target="_blank" rel="noopener"
        href="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/edit?usp=sharing">
       📊 View Live Dataset (Google Sheet)
     </a>
 
+    <!-- 2) Open in NotebookLM (replace once the notebook exists) -->
     <a class="nbx-btn nbx-btn--primary" target="_blank" rel="noopener"
        href="https://notebooklm.google.com/notebook/YOUR_NOTEBOOK_ID_HERE">
       🧠 Open in NotebookLM
     </a>
 
+    <!-- Optional: direct raw CSV link as a fallback -->
     <a class="nbx-btn" target="_blank" rel="noopener"
        href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/eppley_master.csv">
       🗂️ Download master.csv
     </a>
   </div>
 
-  <table>
+  <table id="filesTable">
     <thead>
-      <tr><th>File</th><th>Description</th><th>Rows</th><th>Status</th><th>Download</th></tr>
+      <tr><th style="width:220px">File</th><th>Description</th><th style="width:110px">Rows</th><th style="width:90px">Status</th><th style="width:140px">Download</th></tr>
     </thead>
     <tbody>
-      <tr><td>wordpress_posts.csv</td><td>All blog & Q&A posts authored by Dr. Eppley</td><td>0</td><td class="warn">warn</td><td><a href="output/wordpress_posts.csv">CSV</a></td></tr>
-      <tr><td>pubmed_eppley.csv</td><td>Peer-reviewed PubMed research articles</td><td>119</td><td class="warn">warn</td><td><a href="output/pubmed_eppley.csv">CSV</a></td></tr>
-      <tr><td>crossref_works.csv</td><td>Crossref-indexed scholarly works</td><td>0</td><td class="warn">warn</td><td><a href="output/crossref_works.csv">CSV</a></td></tr>
-      <tr><td>openalex_works.csv</td><td>OpenAlex-identified research works</td><td>0</td><td class="warn">warn</td><td><a href="output/openalex_works.csv">CSV</a></td></tr>
-      <tr><td>clinical_trials.csv</td><td>ClinicalTrials.gov studies related to Eppley</td><td>0</td><td class="warn">warn</td><td><a href="output/clinical_trials.csv">CSV</a></td></tr>
-      <tr><td>orcid_profiles.csv</td><td>ORCID public researcher profiles</td><td>0</td><td class="warn">warn</td><td><a href="output/orcid_profiles.csv">CSV</a></td></tr>
-      <tr><td>orcid_works.csv</td><td>ORCID-linked publication data</td><td>0</td><td class="warn">warn</td><td><a href="output/orcid_works.csv">CSV</a></td></tr>
-      <tr><td>youtube_all.csv</td><td>YouTube videos mentioning or uploaded by Dr. Eppley</td><td>1345</td><td class="ok">ok</td><td><a href="output/youtube_all.csv">CSV</a></td></tr>
-      <tr><td>eppley_master.csv</td><td>Unified master dataset (merged from all sources)</td><td>1464</td><td class="ok">ok</td><td><a href="output/eppley_master.csv">CSV</a></td></tr>
+      <!-- Initial placeholders; JS will fetch and overwrite the row counts + status -->
+      <tr data-csv="output/wordpress_posts.csv">
+        <td>wordpress_posts.csv</td>
+        <td>All blog &amp; Q&amp;A posts authored by Dr. Eppley</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/wordpress_posts.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/pubmed_eppley.csv">
+        <td>pubmed_eppley.csv</td>
+        <td>Peer-reviewed PubMed research articles</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/pubmed_eppley.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/pubmed_eppley_with_abstracts.csv">
+        <td>pubmed_eppley_with_abstracts.csv</td>
+        <td>PubMed articles enriched with abstracts (preferred)</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/pubmed_eppley_with_abstracts.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/crossref_works.csv">
+        <td>crossref_works.csv</td>
+        <td>Crossref-indexed scholarly works</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/crossref_works.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/openalex_works.csv">
+        <td>openalex_works.csv</td>
+        <td>OpenAlex-identified research works</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/openalex_works.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/clinical_trials.csv">
+        <td>clinical_trials.csv</td>
+        <td>ClinicalTrials.gov study records related to Dr. Eppley</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/clinical_trials.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/orcid_profiles.csv">
+        <td>orcid_profiles.csv</td>
+        <td>ORCID public researcher profiles</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/orcid_profiles.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/orcid_works.csv">
+        <td>orcid_works.csv</td>
+        <td>ORCID-linked publication data</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/orcid_works.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/youtube_all.csv">
+        <td>youtube_all.csv</td>
+        <td>YouTube videos featuring or uploaded by Dr. Eppley</td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/youtube_all.csv">CSV</a></td>
+      </tr>
+      <tr data-csv="output/eppley_master.csv">
+        <td><strong>eppley_master.csv</strong></td>
+        <td><strong>Unified master dataset (merged from all sources)</strong></td>
+        <td class="rows">—</td>
+        <td class="status warn">warn</td>
+        <td><a href="output/eppley_master.csv">CSV</a></td>
+      </tr>
     </tbody>
   </table>
 
@@ -107,9 +163,97 @@
   </div>
 
   <div class="nbx-note">
-    Tip: make sure your Google Sheet sharing is set to <em>“Anyone with the link: Viewer”</em>.
-    The NotebookLM link will work after you paste your notebook URL above.
+    Tip: set your Google Sheet sharing to <em>“Anyone with the link: Viewer”</em>. <br>
+    NotebookLM link will work after you paste your notebook URL above.
   </div>
+
+  <script>
+    // Base-path safe fetch for GitHub Pages project sites.
+    function computeBase(){
+      const hostIsGh = location.hostname.endsWith('github.io');
+      const parts = location.pathname.split('/').filter(Boolean);
+      if (hostIsGh && parts.length>0) return '/' + parts[0]; // e.g. /eppley-collector
+      return '';
+    }
+    const BASE = computeBase();
+
+    async function fetchJSON(path){
+      try{
+        const res = await fetch(BASE + '/' + path.replace(/^\\//,''));
+        if(!res.ok) throw new Error(res.status+' '+res.statusText);
+        return await res.json();
+      }catch(e){
+        console.warn('status.json fetch failed', e);
+        return null;
+      }
+    }
+
+    async function fetchText(path){
+      try{
+        const res = await fetch(BASE + '/' + path.replace(/^\\//,''));
+        if(!res.ok) throw new Error(res.status+' '+res.statusText);
+        return await res.text();
+      }catch(e){
+        console.warn('csv fetch failed', path, e);
+        return null;
+      }
+    }
+
+    // Count CSV rows (minus header). Returns number or 0.
+    async function countCsvRows(csvPath){
+      const text = await fetchText(csvPath);
+      if (!text) return 0;
+      // Normalize newlines then count lines - 1 for header if there is one
+      const lines = text.replace(/\\r\\n/g,'\\n').replace(/\\r/g,'\\n').split('\\n');
+      if (lines.length === 0) return 0;
+      // Allow empty trailing newline
+      const nonEmpty = lines.filter(l => l.trim().length > 0);
+      const header = nonEmpty.length ? 1 : 0;
+      return Math.max(0, nonEmpty.length - header);
+    }
+
+    function setStamp(ts, total){
+      const last = document.getElementById('lastUpdated');
+      const recs = document.getElementById('totalRecords');
+      if(ts) last.textContent = new Date(ts).toLocaleString();
+      if(typeof total==='number') recs.textContent = total.toLocaleString();
+    }
+
+    function setRowStatus(tr, rows){
+      const rowsTd = tr.querySelector('.rows');
+      const stTd = tr.querySelector('.status');
+      rowsTd.textContent = rows.toLocaleString();
+      if(rows > 0){
+        stTd.textContent = 'ok';
+        stTd.classList.remove('warn'); stTd.classList.add('ok');
+      }else{
+        stTd.textContent = 'warn';
+        stTd.classList.remove('ok'); stTd.classList.add('warn');
+      }
+    }
+
+    (async function init(){
+      // 1) Last updated + total records from status.json (written by generate_master_csv.py)
+      const status = await fetchJSON('output/status.json');
+      if(status){
+        setStamp(status.timestamp || null, typeof status.records==='number' ? status.records : null);
+      }
+
+      // 2) Iterate table rows and populate row counts + status
+      const rows = Array.from(document.querySelectorAll('#filesTable tbody tr'));
+      for(const tr of rows){
+        const csvPath = tr.getAttribute('data-csv');
+        if(!csvPath) continue;
+        try{
+          const count = await countCsvRows(csvPath);
+          setRowStatus(tr, count);
+        }catch(e){
+          console.warn('count failed', csvPath, e);
+          setRowStatus(tr, 0);
+        }
+      }
+    })();
+  </script>
 
 </body>
 </html>
