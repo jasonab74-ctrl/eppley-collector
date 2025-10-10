@@ -11,7 +11,10 @@ async function go(){
   try{
     const res=await fetch('output/status.json?'+Date.now()); const data=await res.json();
     const f=(data.files||[]); const get=n=>f.find(x=>x.name===n)||{};
-    const qa=get('wordpress_posts.csv').rows||0; const pm=get('pubmed_eppley.csv').rows||0; const vd=get('youtube_metadata.csv').rows||0;
+    // The YouTube CSV was renamed from youtube_metadata.csv to youtube_all.csv to
+    // align with the collector output.  Update the badge to read from the
+    // correct file name.
+    const qa=get('wordpress_posts.csv').rows||0; const pm=get('pubmed_eppley.csv').rows||0; const vd=get('youtube_all.csv').rows||0;
     const when=data.generated_at ? new Date(data.generated_at).toISOString().slice(0,10) : '—';
     document.querySelector('#badge').innerHTML=`<span class="dot"></span><span><strong>Q&As:</strong> ${qa.toLocaleString()} • <strong>PubMed:</strong> ${pm.toLocaleString()} • <strong>Videos:</strong> ${vd.toLocaleString()} (Updated ${when})</span>`;
   }catch(e){ document.querySelector('#badge').innerHTML = '<span class="dot"></span><span>Status pending…</span>'; }
