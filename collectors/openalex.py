@@ -71,7 +71,13 @@ def run_openalex(out_path: str = "output/openalex_works.csv", per_page: int = 20
         w.writeheader()
 
         while True:
-            js = _get_json(BASE, params=params)
+            try:
+                js = _get_json(BASE, params=params)
+            except Exception as e:
+                # Any HTTP error or network failure should halt the collector gracefully.
+                # We simply break the loop and return whatever rows have been written so far.
+                print(f"[openalex] error: {e}; aborting collection and returning {total} rows")
+                return total
             results = js.get("results", []) or []
             for it in results:
                 hv = it.get("host_venue") or {}
