@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    # Nightly, 3:15am Phoenix (America/Phoenix is UTC-7 with no DST; adjust if you prefer)
+    # Nightly ~3:15 AM Phoenix (America/Phoenix is UTC-7 and does not observe DST).
     - cron: "15 10 * * *"
 
 permissions:
@@ -20,6 +20,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,31 +29,52 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
 
-      # ---- Collect data (safe to skip failures so the site still deploys) ----
-      - name: Run collectors
+      # ---------------------------
+      # Collect data
+      # ---------------------------
+      - name: Run collectors (safe to continue on partial failures)
         env:
-          YT_API_KEY: ${{ secrets.YT_API_KEY }}  # set this only if using the API path
+          YT_API_KEY: ${{ secrets.YT_API_KEY }} # set only if using API path
         run: |
           set -e
+          # Your main orchestrator
           python main.py || true
-          # If you maintain separate scripts, you can call them here instead:
+          # (If you sometimes run collectors independently, keep these handy)
           # python youtube_collect.py || true
           # python openalex_collect.py || true
           # python s2_collect.py || true
 
-      # ---- Make sure we have a unified master dataset ----
+      # ---------------------------
+      # Enrich PubMed with abstracts
+      # ---------------------------
+      - name: Enrich PubMed abstracts
+        env:
+          EMAIL: ${{ vars.NCBI_EMAIL }}          # Set in repo: Settings → Variables → Actions
+          NCBI_TOOL: eppley-collector
+        run: |
+          if [ -f tools/augment_pubmed_abstracts.py ]; then
+            python tools/augment_pubmed_abstracts.py
+          else
+            echo "augment_pubmed_abstracts.py not found (tools/). Skipping."
+          fi
+          ls -la output || true
+
+      # ---------------------------
+      # Merge to unified master
+      # ---------------------------
       - name: Merge to master.csv/json
         run: |
           if [ -f generate_master_csv.py ]; then
             python generate_master_csv.py --output-dir ./output
           else
-            # Fallback: if repo uses eppley_master naming via main.py, ensure both names exist
+            echo "generate_master_csv.py not found. Attempting fallback naming…"
             if [ -f output/eppley_master.csv ] && [ ! -f output/master.csv ]; then
               cp output/eppley_master.csv output/master.csv || true
             fi
@@ -60,41 +82,46 @@ jobs:
               cp output/eppley_master.json output/master.json || true
             fi
           fi
-          ls -la output || true
+          echo "Top of master:"
+          (head -n 3 output/master.csv || head -n 3 output/eppley_master.csv || true)
 
-      # ---- (Optional) Bootstrap CSV from PubMed JSONL so UI isn't empty on first run ----
+      # (Optional) Bootstrap PubMed CSV from JSONL if empty on first run
       - name: Bootstrap pubmed_eppley.csv from JSONL (optional)
         run: |
           python - << 'PY'
           import csv, json, pathlib
           p = pathlib.Path("output/pubmed_eppley.jsonl")
+          out = pathlib.Path("output/pubmed_eppley.csv")
           if p.exists():
-              rows=[]
-              with p.open(encoding="utf-8") as f:
-                  for line in f:
+              lines = list(p.read_text(encoding="utf-8").splitlines())
+              if (not out.exists()) or sum(1 for _ in out.open()) <= 1:
+                  rows=[]
+                  for line in lines:
+                      if not line.strip(): continue
                       j=json.loads(line)
                       rows.append({
                           "title": j.get("title",""),
-                          "abstract": "",
+                          "abstract": j.get("abstract",""),
                           "journal": j.get("journal",""),
                           "year": j.get("year",""),
                           "authors": j.get("authors",""),
                           "doi": j.get("doi",""),
                           "url": j.get("url","")
                       })
-              out = pathlib.Path("output/pubmed_eppley.csv")
-              if not out.exists() or sum(1 for _ in out.open())<=1:
-                  with out.open("w", newline="", encoding="utf-8") as f2:
-                      w=csv.DictWriter(f2, fieldnames=["title","abstract","journal","year","authors","doi","url"])
+                  out.parent.mkdir(parents=True, exist_ok=True)
+                  with out.open("w", newline="", encoding="utf-8") as f:
+                      w=csv.DictWriter(f, fieldnames=["title","abstract","journal","year","authors","doi","url"])
                       w.writeheader(); w.writerows(rows)
                   print(f"Bootstrapped {len(rows)} rows -> {out}")
           PY
 
-      # ---- Prepare Pages artifact (must include /output for the browser UI) ----
+      # ---------------------------
+      # Publish: include /output so the site can serve data at /output/*
+      # ---------------------------
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .  # upload the entire repo root so /output is served at /output/*
+          path: .  # upload repo root; ensures /output is served at /output/*
 
   deploy:
     needs: build
