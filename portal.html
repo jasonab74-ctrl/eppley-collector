@@ -19,7 +19,9 @@
 </main>
 <footer>Data updates nightly via GitHub Actions.</footer>
 <script>
-const PATHS={qa:'output/wordpress_posts.csv', pubs:'output/pubmed_eppley.csv', vids:'output/youtube_metadata.csv'};
+// Location of the various CSVs used by the portal.  The YouTube file name
+// here should match the output produced by collectors/youtube.py.
+const PATHS={qa:'output/wordpress_posts.csv', pubs:'output/pubmed_eppley.csv', vids:'output/youtube_all.csv'};
 const state={qa:[],pubs:[],vids:[],indexes:{}}; const csvToArray=o=>o.data&&o.data.length?o.data:[];
 function render(type,rows){const w=document.getElementById(type+'-list'),c=document.getElementById(type+'-count');w.innerHTML='';c.textContent=(rows.length||0).toLocaleString()+' result(s)';
 const f=document.createDocumentFragment(); rows.slice(0,500).forEach(r=>{const el=document.createElement('article'); el.className='card';
