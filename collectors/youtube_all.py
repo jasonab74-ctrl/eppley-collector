@@ -11,7 +11,7 @@ FIELDS = ["source","videoId","title","channelTitle","publishedAt","url"]
 
 def search_all(query):
     if not API_KEY:
-        print("[youtube_all] YT_API_KEY environment variable not set; skipping YouTube collection.")
+        print("[youtube_all] YT_API_KEY not set; skipping YouTube collection.")
         return []
     url = "https://www.googleapis.com/youtube/v3/search"
     params = {
@@ -37,7 +37,7 @@ def search_all(query):
             vid = item["id"]["videoId"]
             sn = item["snippet"]
             rows.append({
-                "source":"youtube",
+                "source": "youtube",
                 "videoId": vid,
                 "title": sn.get("title",""),
                 "channelTitle": sn.get("channelTitle",""),
