@@ -1,10 +1,10 @@
 name: Collect & Build
 
 on:
-  workflow_dispatch:         # run manually
-  push:                      # run on every push to main
+  workflow_dispatch:          # run manually
+  push:                       # run whenever you push to main
     branches: [ main ]
-  schedule:                  # run nightly (06:35 UTC)
+  schedule:                   # run nightly at 06:35 UTC
     - cron: "35 6 * * *"
 
 permissions:
@@ -29,22 +29,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml
 
-      - name: Run collectors (verbose)
-        env:
-          NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
-          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+      - name: Run single-file collector
         run: |
-          set -eux
-          python main.py
-
-      - name: Show output files
-        run: |
-          ls -la output || true
-          for f in output/*.csv; do
-            echo "----- $f (head) -----"
-            head -n 5 "$f" || true
-            wc -l "$f" || true
-          done
+          python eppley_collect.py
 
       - name: Write status.json
         run: |
