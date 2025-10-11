@@ -1,8 +1,8 @@
 name: Collect & Build
 
 on:
-  workflow_dispatch:          # allows manual runs
-  push:                       # run on every push to main
+  workflow_dispatch:          # manual runs
+  push:                       # run on each push to main
     branches: [ main ]
   schedule:                   # run nightly at 06:35 UTC
     - cron: "35 6 * * *"
@@ -28,7 +28,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml
 
-      # Export repository variables/secrets so Python scripts can use them
       - name: Export API credentials
         env:
           NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
@@ -37,19 +36,16 @@ jobs:
           echo "NCBI_EMAIL=${NCBI_EMAIL}" >> $GITHUB_ENV
           echo "YT_API_KEY=${YT_API_KEY}" >> $GITHUB_ENV
 
-      # Run the Python collectors and merge them
       - name: Run collectors
         run: python main.py
 
-      # Build status.json so the site knows row counts
       - name: Write status.json
         run: python tools/write_status.py
 
-      # Commit output files back to the repo (CSV + status.json)
       - name: Commit and push outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add output/*.csv output/status.json || true
           git commit -m "Auto: update collected data" || exit 0
-          git push
+          git push || true
