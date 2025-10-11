@@ -1,4 +1,4 @@
-import csv, time, json
+import csv, time
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -7,15 +7,12 @@ import requests
 
 OUT = Path("output")
 OUT.mkdir(parents=True, exist_ok=True)
-
 UA = {"User-Agent": "EppleyCollector/1.0 (mailto:site@eppley.example)"}
 
-
 def collect_wordpress():
-    """Dr. Eppley blog RSS → output/wordpress_posts.csv"""
     url = "https://www.exploreplasticsurgery.com/feed/"
     dest = OUT / "wordpress_posts.csv"
-    fields = ["source", "title", "link", "pub_date", "author", "categories", "summary"]
+    fields = ["source","title","link","pub_date","author","categories","summary"]
     rows = []
     try:
         r = requests.get(url, timeout=30, headers=UA)
@@ -30,34 +27,25 @@ def collect_wordpress():
             desc = (it.findtext("description") or "").strip()
             cats = [c.text.strip() for c in it.findall("category") if c.text]
             rows.append({
-                "source": "wordpress",
-                "title": title, "link": link, "pub_date": pub_date,
-                "author": author, "categories": "; ".join(cats), "summary": desc
+                "source":"wordpress",
+                "title":title, "link":link, "pub_date":pub_date,
+                "author":author, "categories":"; ".join(cats), "summary":desc
             })
     except Exception as e:
         print(f"[wordpress] ERROR: {e}")
-
     with dest.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fields)
-        w.writeheader()
+        w = csv.DictWriter(f, fieldnames=fields); w.writeheader()
         for row in rows: w.writerow(row)
     print(f"[wordpress] wrote {len(rows)} rows -> {dest}")
 
-
 def collect_crossref():
-    """Crossref works by author name → output/crossref_works.csv"""
     base = "https://api.crossref.org/works"
     dest = OUT / "crossref_works.csv"
     fields = ["source","title","year","journal","type","DOI","URL","authors"]
     rows, cursor = [], "*"
     try:
         while True:
-            params = {
-                "query.author": "Barry Eppley",
-                "rows": 200,
-                "cursor": cursor,
-                "mailto": "site@eppley.example"
-            }
+            params = {"query.author":"Barry Eppley","rows":200,"cursor":cursor,"mailto":"site@eppley.example"}
             r = requests.get(base, params=params, headers=UA, timeout=60)
             r.raise_for_status()
             data = r.json()
@@ -83,30 +71,26 @@ def collect_crossref():
             time.sleep(0.25)
     except Exception as e:
         print(f"[crossref] ERROR: {e}")
-
     with dest.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields); w.writeheader()
         for row in rows: w.writerow(row)
     print(f"[crossref] wrote {len(rows)} rows -> {dest}")
 
-
 def collect_openalex():
-    """OpenAlex works by author search → output/openalex_works.csv"""
     base = "https://api.openalex.org"
     dest = OUT / "openalex_works.csv"
     fields = ["source","openalex_id","title","publication_year","host_venue","type","cited_by_count","doi","url"]
     rows = []
     try:
-        # find author id
         r = requests.get(f"{base}/authors", params={"search":"Barry Eppley","per_page":1}, headers=UA, timeout=30)
         r.raise_for_status()
         aid = (r.json().get("results") or [{}])[0].get("id")
         if not aid:
-            print("[openalex] author not found"); aid=None
-
+            print("[openalex] author not found")
+            aid = None
         page = 1
         while aid:
-            params = {"filter": f"authorships.author.id:{aid}", "per_page": 200, "page": page, "sort": "publication_year:desc"}
+            params = {"filter":f"authorships.author.id:{aid}","per_page":200,"page":page,"sort":"publication_year:desc"}
             r = requests.get(f"{base}/works", params=params, headers=UA, timeout=60)
             r.raise_for_status()
             data = r.json()
@@ -127,15 +111,12 @@ def collect_openalex():
             page += 1; time.sleep(0.2)
     except Exception as e:
         print(f"[openalex] ERROR: {e}")
-
     with dest.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields); w.writeheader()
         for row in rows: w.writerow(row)
     print(f"[openalex] wrote {len(rows)} rows -> {dest}")
 
-
 def merge_master():
-    """Merge all CSVs into output/eppley_master.csv"""
     dest = OUT / "eppley_master.csv"
     frames = []
     for p in OUT.glob("*.csv"):
@@ -148,7 +129,6 @@ def merge_master():
     m = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
     m.to_csv(dest, index=False)
     print(f"[merge] wrote {dest} ({len(m)} rows)")
-
 
 if __name__ == "__main__":
     collect_wordpress()
