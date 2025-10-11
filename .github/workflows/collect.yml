@@ -2,8 +2,6 @@ name: Collect & Build
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "35 6 * * *"  # daily UTC
 
 permissions:
   contents: write
@@ -15,6 +13,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Show repo tree (before)
+        run: |
+          echo "== REPO TREE (before) =="
+          ls -la
+          echo
+          echo "== WORKFLOWS =="
+          ls -la .github/workflows || true
+          echo
+          echo "== COLLECTORS =="
+          ls -la collectors || true
+          echo
+          echo "== TOOLS =="
+          ls -la tools || true
+          echo
+          echo "== main.py HEAD =="
+          sed -n '1,200p' main.py || true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -25,15 +40,82 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml
 
-      - name: Run collectors + merge + status
+      - name: Quick network sanity checks
         run: |
-          python main.py
-          python tools/write_status.py
+          set -eux
+          python - << 'PY'
+import requests
+for url in [
+  "https://api.crossref.org/works?rows=1",
+  "https://api.openalex.org/authors?search=Barry%20Eppley&per_page=1",
+  "https://www.exploreplasticsurgery.com/feed/"
+]:
+    r = requests.get(url, timeout=20, headers={"User-Agent":"EppleyCollector/diag"})
+    print(url, r.status_code, len(r.text))
+PY
+
+      - name: Run collectors (verbose)
+        env:
+          NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+        run: |
+          set -eux
+          python - << 'PY'
+import os, sys, importlib, traceback
+print("PYTHON:", sys.version)
+print("CWD:", os.getcwd())
+print("ENV NCBI_EMAIL:", os.getenv("NCBI_EMAIL"))
+print("ENV YT_API_KEY set?:", bool(os.getenv("YT_API_KEY")))
+
+mods = [
+  "collectors.wordpress_posts",
+  "collectors.crossref_works",
+  "collectors.openalex_works",
+  "collectors.pubmed_eppley",
+  "collectors.youtube_all",
+]
+for m in mods:
+    print(f"==> importing {m}")
+    try:
+        mod = importlib.import_module(m)
+        print(f"   imported {m} OK")
+        if hasattr(mod, "run"):
+            print(f"   running {m}.run()")
+            mod.run()
+            print(f"   finished {m}.run()")
+        else:
+            print(f"   {m} has no run()")
+    except Exception as e:
+        print(f"!! {m} FAILED: {e}")
+        traceback.print_exc()
+
+print("== collectors done ==")
+PY
+
+      - name: Show output files
+        run: |
+          echo "== OUTPUT DIR =="
+          ls -la output || true
+          for f in output/*.csv; do
+            echo
+            echo "----- $f (first 5 lines) -----"
+            head -n 5 "$f" || true
+            echo "----- line count -----"
+            wc -l "$f" || true
+          done
+
+      - name: Build master + write status
+        run: |
+          set -eux
+          python main.py merge_only || true
+          python tools/write_status.py || true
+          echo "== status.json =="
+          cat output/status.json || true
 
       - name: Commit artifacts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add output/* || true
-          git commit -m "Update outputs" || echo "No changes"
-          git push
+          git commit -m "Diagnostics: update outputs" || echo "No changes"
+          git push || true
