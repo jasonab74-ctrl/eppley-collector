@@ -13,9 +13,9 @@ def run():
     try:
         r = requests.get(
             f"{BASE}/authors",
-            params={"search":"Barry Eppley","per_page":1},
+            params={"search": "Barry Eppley", "per_page": 1},
             timeout=30,
-            headers={"User-Agent":"EppleyCollector/1.0 (mailto:site@eppley.example)"}
+            headers={"User-Agent": "EppleyCollector/1.0 (mailto:site@eppley.example)"}
         )
         r.raise_for_status()
         results = r.json().get("results") or []
@@ -34,7 +34,7 @@ def run():
                 f"{BASE}/works",
                 params=params,
                 timeout=60,
-                headers={"User-Agent":"EppleyCollector/1.0 (mailto:site@eppley.example)"}
+                headers={"User-Agent": "EppleyCollector/1.0 (mailto:site@eppley.example)"}
             )
             rr.raise_for_status()
             data = rr.json()
