@@ -1,10 +1,11 @@
 name: Collect & Build
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+  workflow_dispatch:         # run manually
+  push:                      # run on every push to main
+    branches: [ main ]
+  schedule:                  # run nightly (06:35 UTC)
+    - cron: "35 6 * * *"
 
 permissions:
   contents: write
@@ -12,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -27,29 +29,33 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml
 
-      - name: Run collectors
+      - name: Run collectors (verbose)
         env:
           NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
         run: |
-          echo "==> Starting collectors"
+          set -eux
           python main.py
-          echo "==> Collectors finished"
 
-      - name: Verify output
+      - name: Show output files
         run: |
-          echo "==> Checking output directory"
           ls -la output || true
-          echo "==> Show first lines of CSVs (if any)"
           for f in output/*.csv; do
-            echo "----- $f -----"
+            echo "----- $f (head) -----"
             head -n 5 "$f" || true
+            wc -l "$f" || true
           done
 
-      - name: Commit results
+      - name: Write status.json
+        run: |
+          python tools/write_status.py
+          echo "== status.json =="
+          cat output/status.json || true
+
+      - name: Commit artifacts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add output/* || true
-          git commit -m "Auto: update collected data" || echo "No changes to commit"
+          git commit -m "Auto: update collected data" || echo "No changes"
           git push || true
