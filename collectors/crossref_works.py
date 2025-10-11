@@ -5,7 +5,7 @@ import requests
 
 OUT = Path("output/crossref_works.csv")
 BASE = "https://api.crossref.org/works"
-FIELDS = ["source","title","year","journal","type","DOI","URL","authors"]
+FIELDS = ["source", "title", "year", "journal", "type", "DOI", "URL", "authors"]
 
 def run():
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -23,7 +23,7 @@ def run():
                 BASE,
                 params=params,
                 timeout=60,
-                headers={"User-Agent":"EppleyCollector/1.0 (mailto:site@eppley.example)"}
+                headers={"User-Agent": "EppleyCollector/1.0 (mailto:site@eppley.example)"}
             )
             r.raise_for_status()
             data = r.json()
@@ -31,7 +31,7 @@ def run():
             for it in items:
                 authors = []
                 for a in (it.get("author") or []):
-                    nm = " ".join(filter(None, [a.get("given",""), a.get("family","")])).strip()
+                    nm = " ".join(filter(None, [a.get("given", ""), a.get("family", "")])).strip()
                     if nm:
                         authors.append(nm)
                 rows.append({
@@ -39,9 +39,9 @@ def run():
                     "title": (it.get("title", [""])[0] or "").strip(),
                     "year": (it.get("issued", {}).get("date-parts", [[None]])[0][0]),
                     "journal": (it.get("container-title", [""])[0] or ""),
-                    "type": it.get("type",""),
-                    "DOI": it.get("DOI",""),
-                    "URL": it.get("URL",""),
+                    "type": it.get("type", ""),
+                    "DOI": it.get("DOI", ""),
+                    "URL": it.get("URL", ""),
                     "authors": "; ".join(authors),
                 })
             next_cur = data.get("message", {}).get("next-cursor")
