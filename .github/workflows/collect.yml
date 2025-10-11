@@ -2,6 +2,9 @@ name: Collect & Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -9,113 +12,44 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Show repo tree (before)
-        run: |
-          echo "== REPO TREE (before) =="
-          ls -la
-          echo
-          echo "== WORKFLOWS =="
-          ls -la .github/workflows || true
-          echo
-          echo "== COLLECTORS =="
-          ls -la collectors || true
-          echo
-          echo "== TOOLS =="
-          ls -la tools || true
-          echo
-          echo "== main.py HEAD =="
-          sed -n '1,200p' main.py || true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml
 
-      - name: Quick network sanity checks
-        run: |
-          set -eux
-          python - << 'PY'
-import requests
-for url in [
-  "https://api.crossref.org/works?rows=1",
-  "https://api.openalex.org/authors?search=Barry%20Eppley&per_page=1",
-  "https://www.exploreplasticsurgery.com/feed/"
-]:
-    r = requests.get(url, timeout=20, headers={"User-Agent":"EppleyCollector/diag"})
-    print(url, r.status_code, len(r.text))
-PY
-
-      - name: Run collectors (verbose)
+      - name: Run collectors
         env:
           NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
         run: |
-          set -eux
-          python - << 'PY'
-import os, sys, importlib, traceback
-print("PYTHON:", sys.version)
-print("CWD:", os.getcwd())
-print("ENV NCBI_EMAIL:", os.getenv("NCBI_EMAIL"))
-print("ENV YT_API_KEY set?:", bool(os.getenv("YT_API_KEY")))
+          echo "==> Starting collectors"
+          python main.py
+          echo "==> Collectors finished"
 
-mods = [
-  "collectors.wordpress_posts",
-  "collectors.crossref_works",
-  "collectors.openalex_works",
-  "collectors.pubmed_eppley",
-  "collectors.youtube_all",
-]
-for m in mods:
-    print(f"==> importing {m}")
-    try:
-        mod = importlib.import_module(m)
-        print(f"   imported {m} OK")
-        if hasattr(mod, "run"):
-            print(f"   running {m}.run()")
-            mod.run()
-            print(f"   finished {m}.run()")
-        else:
-            print(f"   {m} has no run()")
-    except Exception as e:
-        print(f"!! {m} FAILED: {e}")
-        traceback.print_exc()
-
-print("== collectors done ==")
-PY
-
-      - name: Show output files
+      - name: Verify output
         run: |
-          echo "== OUTPUT DIR =="
+          echo "==> Checking output directory"
           ls -la output || true
+          echo "==> Show first lines of CSVs (if any)"
           for f in output/*.csv; do
-            echo
-            echo "----- $f (first 5 lines) -----"
+            echo "----- $f -----"
             head -n 5 "$f" || true
-            echo "----- line count -----"
-            wc -l "$f" || true
           done
 
-      - name: Build master + write status
-        run: |
-          set -eux
-          python main.py merge_only || true
-          python tools/write_status.py || true
-          echo "== status.json =="
-          cat output/status.json || true
-
-      - name: Commit artifacts
+      - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add output/* || true
-          git commit -m "Diagnostics: update outputs" || echo "No changes"
+          git commit -m "Auto: update collected data" || echo "No changes to commit"
           git push || true
