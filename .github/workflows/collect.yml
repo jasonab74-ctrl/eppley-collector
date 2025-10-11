@@ -1,8 +1,8 @@
 name: Collect & Build
 
 on:
-  workflow_dispatch:          # run manually
-  push:                       # run whenever you push to main
+  workflow_dispatch:          # allows manual runs
+  push:                       # run on every push to main
     branches: [ main ]
   schedule:                   # run nightly at 06:35 UTC
     - cron: "35 6 * * *"
@@ -13,25 +13,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Show repo tree (sanity)
-        run: |
-          echo "== REPO ROOT =="
-          ls -la
-          echo
-          echo "== .github/workflows =="
-          ls -la .github/workflows || true
-          echo
-          echo "== tools =="
-          ls -la tools || true
-          echo
-          echo "== eppley_collect.py HEAD =="
-          sed -n '1,160p' eppley_collect.py || echo "MISSING eppley_collect.py"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -43,31 +28,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml
 
-      - name: Run single-file collector
+      # Export repository variables/secrets so Python scripts can use them
+      - name: Export API credentials
+        env:
+          NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
         run: |
-          set -eux
-          python eppley_collect.py
+          echo "NCBI_EMAIL=${NCBI_EMAIL}" >> $GITHUB_ENV
+          echo "YT_API_KEY=${YT_API_KEY}" >> $GITHUB_ENV
 
-      - name: Show output CSVs
-        run: |
-          echo "== OUTPUT DIR =="
-          ls -la output || true
-          for f in output/*.csv; do
-            echo "----- $f (head) -----"
-            head -n 5 "$f" || true
-            wc -l "$f" || true
-          done
+      # Run the Python collectors and merge them
+      - name: Run collectors
+        run: python main.py
 
+      # Build status.json so the site knows row counts
       - name: Write status.json
-        run: |
-          python tools/write_status.py
-          echo "== status.json =="
-          cat output/status.json || true
+        run: python tools/write_status.py
 
-      - name: Commit artifacts
+      # Commit output files back to the repo (CSV + status.json)
+      - name: Commit and push outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/* || true
-          git commit -m "Auto: update collected data" || echo "No changes"
-          git push || true
+          git add output/*.csv output/status.json || true
+          git commit -m "Auto: update collected data" || exit 0
+          git push
