@@ -22,6 +22,7 @@ def run_collectors():
             m = importlib.import_module(mod)
             if hasattr(m, "run"):
                 m.run()
+                print(f"[ok] {mod}.run() finished")
             else:
                 print(f"[warn] {mod} has no run() function")
         except Exception as e:
