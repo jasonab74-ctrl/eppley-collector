@@ -6,7 +6,6 @@ import pandas as pd
 OUTDIR = Path("output")
 STATUS_F = OUTDIR / "status.json"
 
-# Files to track for status (order matters for display)
 FILES = [
     "wordpress_posts.csv",
     "crossref_works.csv",
@@ -35,10 +34,10 @@ def main():
     for name in FILES:
         p = OUTDIR / name
         r = rows_of(p)
-        if r < 0:
-            files_status[name] = {"rows": 0, "status": "skipped"}
-        else:
-            files_status[name] = {"rows": r, "status": "ok" if r > 0 else "warn"}
+        files_status[name] = {
+            "rows": 0 if r < 0 else r,
+            "status": "skipped" if r < 0 else ("ok" if r > 0 else "warn")
+        }
     total_records = rows_of(OUTDIR / "eppley_master.csv")
     if total_records < 0:
         total_records = 0
