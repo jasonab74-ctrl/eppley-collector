@@ -11,7 +11,7 @@ def run():
     OUT.parent.mkdir(parents=True, exist_ok=True)
     rows = []
     try:
-        r = requests.get(FEED_URL, timeout=30, headers={"User-Agent":"EppleyCollector/1.0"})
+        r = requests.get(FEED_URL, timeout=30, headers={"User-Agent": "EppleyCollector/1.0"})
         r.raise_for_status()
         root = ET.fromstring(r.content)
         channel = root.find("channel")
