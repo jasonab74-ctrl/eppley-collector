@@ -1,12 +1,12 @@
 import importlib
-import sys
 from pathlib import Path
 import pandas as pd
 
 OUTPUT = Path("output")
-OUTPUT.mkdir(parents=True, exist_ok=True)
+OUTPUT.mkdir(exist_ok=True, parents=True)
 MASTER = OUTPUT / "eppley_master.csv"
 
+# List of collector modules to run
 PIPELINE = [
     "collectors.wordpress_posts",
     "collectors.crossref_works",
@@ -16,38 +16,33 @@ PIPELINE = [
 ]
 
 def run_collectors():
-    for mod in PIPELINE:
-        print(f"==> Running {mod}")
+    for mod_name in PIPELINE:
+        print(f"==> Running {mod_name}")
         try:
-            m = importlib.import_module(mod)
-            if hasattr(m, "run"):
-                m.run()
-                print(f"[ok] {mod}.run() finished")
+            mod = importlib.import_module(mod_name)
+            if hasattr(mod, "run"):
+                mod.run()
             else:
-                print(f"[warn] {mod} has no run() function")
+                print(f"[warn] {mod_name} has no run() function")
         except Exception as e:
-            print(f"[error] {mod} failed: {e}")
+            print(f"[error] {mod_name} failed: {e}")
 
 def merge_csvs():
-    print("==> Merging CSVs")
-    csvs = list(OUTPUT.glob("*.csv"))
-    print(f"found {len(csvs)} CSVs: {[p.name for p in csvs]}")
     frames = []
-    for p in csvs:
+    for p in OUTPUT.glob("*.csv"):
         try:
             df = pd.read_csv(p)
             df["__file"] = p.name
             frames.append(df)
-            print(f"[merge] {p.name}: {len(df)} rows")
         except Exception as e:
-            print(f"[merge] skip {p.name}: {e}")
+            print(f"[merge] skipping {p.name}: {e}")
     m = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
     m.to_csv(MASTER, index=False)
     print(f"[merge] wrote {MASTER} ({len(m)} rows)")
 
+def main():
+    run_collectors()
+    merge_csvs()
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "merge_only":
-        merge_csvs()
-    else:
-        run_collectors()
-        merge_csvs()
+    main()
