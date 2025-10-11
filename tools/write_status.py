@@ -9,18 +9,15 @@ FILES = [
     "wordpress_posts.csv",
     "crossref_works.csv",
     "openalex_works.csv",
-    "pubmed_eppley.csv",
-    "youtube_all.csv",
     "eppley_master.csv",
 ]
 
 def rows_of(p: Path) -> int:
-    if not p.exists():
-        return -1
+    if not p.exists(): return -1
     try:
         with p.open("r", encoding="utf-8", errors="ignore") as f:
             n = sum(1 for _ in f)
-        return max(0, n - 1)
+        return max(0, n-1)
     except Exception:
         try:
             return len(pd.read_csv(p))
@@ -33,15 +30,12 @@ def main():
     for name in FILES:
         p = OUTDIR / name
         r = rows_of(p)
-        if r == -1:
-            files[name] = {"rows": 0, "status": "skipped"}
-        else:
-            files[name] = {"rows": r, "status": "ok" if r > 0 else "warn"}
-    total = rows_of(OUTDIR / "eppley_master.csv")
+        files[name] = {"rows": 0 if r < 0 else r, "status": "skipped" if r < 0 else ("ok" if r > 0 else "warn")}
+    total = rows_of(OUTDIR/"eppley_master.csv")
     payload = {
         "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "total_records": max(0, total),
-        "files": files,
+        "total_records": 0 if total < 0 else total,
+        "files": files
     }
     with STATUS.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
