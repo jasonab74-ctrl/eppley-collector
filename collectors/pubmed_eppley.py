@@ -29,8 +29,8 @@ def efetch(pmids):
     for i in range(0, len(pmids), 200):
         chunk = pmids[i:i+200]
         params = {
-            "db":"pubmed",
-            "retmode":"xml",
+            "db": "pubmed",
+            "retmode": "xml",
             "id": ",".join(chunk),
             "email": EMAIL or "unknown@example.com"
         }
@@ -61,7 +61,7 @@ def efetch(pmids):
                     break
             url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else ""
             rows.append({
-                "source":"pubmed",
+                "source": "pubmed",
                 "pmid": pmid,
                 "title": title,
                 "journal": journal,
@@ -77,7 +77,7 @@ def efetch(pmids):
 def run():
     OUT.parent.mkdir(parents=True, exist_ok=True)
     if not EMAIL:
-        print("[pubmed_eppley] NCBI_EMAIL environment variable not set; skipping PubMed collection.")
+        print("[pubmed_eppley] NCBI_EMAIL not set; skipping PubMed collection.")
         with OUT.open("w", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=FIELDS).writeheader()
         return
