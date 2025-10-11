@@ -1,45 +1,105 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dr. Barry Eppley Research Dataset</title>
-<style>
-:root{--bg:#0e1014;--card:#151923;--muted:#9aa3b2;--text:#e8ecf1;--ok:#1fbf75;--warn:#f6b100;--skip:#6c7480;--line:#232a36;--accent:#5fa8ff}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Inter,Roboto}
-.wrap{max-width:1080px;margin:40px auto;padding:0 20px}
-h1{margin:0 0 10px}.lead{color:var(--muted);margin:0 0 18px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
-table{width:100%;border-collapse:collapse}th,td{padding:12px;border-bottom:1px solid var(--line)}th{text-align:left;color:#bfc6d3}
-.badge{padding:3px 10px;border-radius:999px;font-weight:700;font-size:.82rem;border:1px solid}
-.ok{color:var(--ok);border-color:var(--ok)}.warn{color:var(--warn);border-color:var(--warn)}.skipped{color:var(--skip);border-color:var(--skip)}
-.right{text-align:right}.muted{color:var(--muted)}
-</style></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dr. Barry Eppley Research Dataset</title>
+  <style>
+    :root {
+      --bg:#0e1014;--card:#151923;--muted:#9aa3b2;--text:#e8ecf1;
+      --ok:#1fbf75;--warn:#f6b100;--skip:#6c7480;
+      --line:#232a36;--accent:#5fa8ff;
+    }
+    body {
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font:16px/1.5 system-ui,-apple-system,Segoe UI,Inter,Roboto;
+    }
+    .wrap {
+      max-width:1080px;
+      margin:40px auto;
+      padding:0 20px;
+    }
+    h1 { margin:0 0 10px; }
+    .lead { color:var(--muted); margin:0 0 18px; }
+    .card {
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:18px;
+    }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:12px; border-bottom:1px solid var(--line); }
+    th { text-align:left; color:#bfc6d3; }
+    .right { text-align:right; }
+    a { color:var(--accent); }
+    .badge { padding:3px 10px; border-radius:999px; font-weight:700; font-size:.82rem; border:1px solid; }
+    .ok { color:var(--ok); border-color:var(--ok); }
+    .warn { color:var(--warn); border-color:var(--warn); }
+    .skipped { color:var(--skip); border-color:var(--skip); }
+    .muted { color:var(--muted); }
+  </style>
+</head>
+<body>
 <div class="wrap">
   <h1>Dr. Barry Eppley Research Dataset</h1>
-  <p class="lead">Automatically collected from public sources (WordPress, Crossref, OpenAlex). Updated nightly.</p>
+  <p class="lead">Automatically collected from public sources (WordPress, Crossref, OpenAlex, PubMed, YouTube). Updated nightly.</p>
   <div class="card">
-    <div class="muted" style="margin-bottom:8px">Last updated: <span id="lu">—</span> • Total records: <span id="tot">—</span></div>
-    <table><thead><tr><th>File</th><th>Description</th><th class="right">Rows</th><th>Status</th><th>Download</th></tr></thead>
-    <tbody id="tb"></tbody></table>
-    <div class="muted" style="margin-top:10px">Unified dataset: <a href="output/eppley_master.csv">output/eppley_master.csv</a> • Status: <a href="output/status.json">output/status.json</a></div>
+    <div class="muted" style="margin-bottom:8px">
+      Last updated: <span id="last-updated">—</span> • Total records: <span id="total-records">—</span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>File</th><th>Description</th><th class="right">Rows</th><th>Status</th><th>Download</th></tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+    <div class="muted" style="margin-top:8px;">
+      Unified dataset: <a href="output/eppley_master.csv">output/eppley_master.csv</a> • Status: <a href="output/status.json">output/status.json</a>
+    </div>
   </div>
 </div>
+
 <script>
 const FILES = {
   "wordpress_posts.csv": "All blog & Q&A posts authored by Dr. Eppley",
   "crossref_works.csv": "Crossref-indexed scholarly works",
   "openalex_works.csv": "OpenAlex-identified research works",
-  "eppley_master.csv": "Unified master dataset (merged from all sources)",
+  "pubmed_eppley.csv": "Peer-reviewed PubMed research articles",
+  "youtube_all.csv": "YouTube videos mentioning or uploaded by Dr. Eppley",
+  "eppley_master.csv": "Unified master dataset (merged from all sources)"
 };
-function badge(s){const cls=(s==='ok')?'ok':(s==='warn'?'warn':'skipped');return `<span class="badge ${cls}">${s}</span>`;}
-fetch('output/status.json',{cache:'no-store'}).then(r=>r.json()).then(s=>{
-  document.getElementById('lu').textContent=s.updated_at||'—';
-  document.getElementById('tot').textContent=(s.total_records??'—').toLocaleString();
-  const tb=document.getElementById('tb');
-  ["wordpress_posts.csv","crossref_works.csv","openalex_works.csv","eppley_master.csv"].forEach(f=>{
-    const rec=s.files[f]||{rows:0,status:"skipped"};
-    tb.insertAdjacentHTML('beforeend',
-      `<tr><td><b>${f}</b></td><td>${FILES[f]||''}</td><td class="right">${(rec.rows||0).toLocaleString()}</td><td>${badge(rec.status||'skipped')}</td><td><a href="output/${f}">${f.endsWith('.csv')?'CSV':'File'}</a></td></tr>`
-    );
-  });
-}).catch(()=>{document.getElementById('tb').innerHTML=`<tr><td colspan="5">status.json not found</td></tr>`});
+
+function badge(status) {
+  const cls = status || 'skipped';
+  return '<span class="badge ' + cls + '">' + (status || 'skipped') + '</span>';
+}
+
+async function loadStatus() {
+  try {
+    const res = await fetch('output/status.json', {cache:'no-store'});
+    const data = await res.json();
+    document.getElementById('last-updated').textContent = data.updated_at || '—';
+    document.getElementById('total-records').textContent = (data.total_records || 0).toLocaleString();
+    const tbody = document.getElementById('table-body');
+    Object.keys(FILES).forEach(name => {
+      const rec = data.files[name] || {rows:0,status:'skipped'};
+      const row = `<tr>
+        <td><b>${name}</b></td>
+        <td>${FILES[name] || ''}</td>
+        <td class="right">${(rec.rows || 0).toLocaleString()}</td>
+        <td>${badge(rec.status)}</td>
+        <td><a href="output/${name}">${name.endsWith('.csv') ? 'CSV' : 'File'}</a></td>
+      </tr>`;
+      tbody.insertAdjacentHTML('beforeend', row);
+    });
+  } catch(e) {
+    console.log('Failed to load status.json', e);
+    document.getElementById('table-body').innerHTML = '<tr><td colspan="5">status.json not found</td></tr>';
+  }
+}
+loadStatus();
 </script>
-</body></html>
+</body>
+</html>
