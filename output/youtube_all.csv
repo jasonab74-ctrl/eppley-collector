@@ -1,1 +1,1 @@
-video_id,title,description,channel_title,channel_id,published_at,view_count,like_count,comment_count,duration,tags,definition,license,live_broadcast,link
+source,videoId,title,channelTitle,publishedAt,url
