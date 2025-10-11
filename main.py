@@ -6,7 +6,6 @@ OUTPUT = Path("output")
 OUTPUT.mkdir(exist_ok=True, parents=True)
 MASTER = OUTPUT / "eppley_master.csv"
 
-# List of collector modules to run
 PIPELINE = [
     "collectors.wordpress_posts",
     "collectors.crossref_works",
