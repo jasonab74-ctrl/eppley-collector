@@ -1,45 +1,55 @@
 from datetime import datetime, timezone
 from pathlib import Path
-import json, pandas as pd
+import json
+import pandas as pd
 
 OUTDIR = Path("output")
-STATUS = OUTDIR / "status.json"
+STATUS_F = OUTDIR / "status.json"
 
+# Files to track for status (order matters for display)
 FILES = [
     "wordpress_posts.csv",
     "crossref_works.csv",
     "openalex_works.csv",
+    "pubmed_eppley.csv",
+    "youtube_all.csv",
     "eppley_master.csv",
 ]
 
-def rows_of(p: Path) -> int:
-    if not p.exists(): return -1
+def rows_of(path: Path) -> int:
+    if not path.exists():
+        return -1
     try:
-        with p.open("r", encoding="utf-8", errors="ignore") as f:
-            n = sum(1 for _ in f)
-        return max(0, n-1)
+        with path.open("r", encoding="utf-8", errors="ignore") as f:
+            count = sum(1 for _ in f)
+        return max(0, count - 1)
     except Exception:
         try:
-            return len(pd.read_csv(p))
+            return len(pd.read_csv(path))
         except Exception:
             return 0
 
 def main():
     OUTDIR.mkdir(parents=True, exist_ok=True)
-    files = {}
+    files_status = {}
     for name in FILES:
         p = OUTDIR / name
         r = rows_of(p)
-        files[name] = {"rows": 0 if r < 0 else r, "status": "skipped" if r < 0 else ("ok" if r > 0 else "warn")}
-    total = rows_of(OUTDIR/"eppley_master.csv")
+        if r < 0:
+            files_status[name] = {"rows": 0, "status": "skipped"}
+        else:
+            files_status[name] = {"rows": r, "status": "ok" if r > 0 else "warn"}
+    total_records = rows_of(OUTDIR / "eppley_master.csv")
+    if total_records < 0:
+        total_records = 0
     payload = {
         "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "total_records": 0 if total < 0 else total,
-        "files": files
+        "total_records": total_records,
+        "files": files_status,
     }
-    with STATUS.open("w", encoding="utf-8") as f:
+    with STATUS_F.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f"[status] wrote {STATUS}")
+    print(f"[status] wrote {STATUS_F}")
 
 if __name__ == "__main__":
     main()
