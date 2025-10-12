@@ -1,105 +1,193 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dr. Barry Eppley Research Dataset</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg:#0e1014;--card:#151923;--muted:#9aa3b2;--text:#e8ecf1;
-      --ok:#1fbf75;--warn:#f6b100;--skip:#6c7480;
-      --line:#232a36;--accent:#5fa8ff;
-    }
-    body {
-      margin:0;
-      background:var(--bg);
-      color:var(--text);
-      font:16px/1.5 system-ui,-apple-system,Segoe UI,Inter,Roboto;
-    }
-    .wrap {
-      max-width:1080px;
-      margin:40px auto;
-      padding:0 20px;
-    }
-    h1 { margin:0 0 10px; }
-    .lead { color:var(--muted); margin:0 0 18px; }
-    .card {
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:18px;
-    }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:12px; border-bottom:1px solid var(--line); }
-    th { text-align:left; color:#bfc6d3; }
-    .right { text-align:right; }
-    a { color:var(--accent); }
-    .badge { padding:3px 10px; border-radius:999px; font-weight:700; font-size:.82rem; border:1px solid; }
-    .ok { color:var(--ok); border-color:var(--ok); }
-    .warn { color:var(--warn); border-color:var(--warn); }
-    .skipped { color:var(--skip); border-color:var(--skip); }
-    .muted { color:var(--muted); }
+    :root { --bg:#0f1115; --panel:#171a21; --text:#e7eef7; --muted:#9aa7b2; --ok:#21c55d; --warn:#f59e0b; --skip:#6b7280; --link:#60a5fa; --line:#222630;}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1024px;margin:48px auto;padding:0 16px}
+    h1{font-weight:800;letter-spacing:.2px;margin:0 0 12px}
+    p.lead{color:var(--muted);margin:0 0 24px}
+    .card{background:var(--panel);border-radius:14px;padding:20px;border:1px solid var(--line)}
+    .meta{color:var(--muted);margin:0 0 12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:14px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+    th{color:var(--muted);font-weight:600;text-align:left}
+    td a{color:var(--link);text-decoration:none}
+    .badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--muted)}
+    .badge.ok{color:#0f5132;background:rgba(33,197,93,.15);border-color:rgba(33,197,93,.25)}
+    .badge.warn{color:#7a4e00;background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.25)}
+    .badge.skip{color:#374151;background:rgba(107,114,128,.15);border-color:rgba(107,114,128,.25)}
+    .file{font-weight:600}
+    .foot{color:var(--muted);margin-top:10px}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
+    .right{float:right}
   </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Dr. Barry Eppley Research Dataset</h1>
-  <p class="lead">Automatically collected from public sources (WordPress, Crossref, OpenAlex, PubMed, YouTube). Updated nightly.</p>
-  <div class="card">
-    <div class="muted" style="margin-bottom:8px">
-      Last updated: <span id="last-updated">—</span> • Total records: <span id="total-records">—</span>
-    </div>
-    <table>
-      <thead>
-        <tr><th>File</th><th>Description</th><th class="right">Rows</th><th>Status</th><th>Download</th></tr>
-      </thead>
-      <tbody id="table-body"></tbody>
-    </table>
-    <div class="muted" style="margin-top:8px;">
-      Unified dataset: <a href="output/eppley_master.csv">output/eppley_master.csv</a> • Status: <a href="output/status.json">output/status.json</a>
+  <div class="wrap">
+    <h1>Dr. Barry Eppley Research Dataset</h1>
+    <p class="lead">Automatically collected from public sources (WordPress, Crossref, OpenAlex, PubMed, YouTube). Updated nightly.</p>
+
+    <div class="card">
+      <p class="meta"><span id="last-updated">Last updated: —</span> &middot; <span id="total-records">Total records: 0</span></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36%">File</th>
+              <th style="width:38%">Description</th>
+              <th style="width:10%">Rows</th>
+              <th style="width:10%">Status</th>
+              <th style="width:6%">Download</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+      <p class="foot">Unified dataset: <a class="mono" href="output/eppley_master.csv">output/eppley_master.csv</a> &middot; Status: <a class="mono" href="output/status.json">output/status.json</a><span id="foot-note" class="right"></span></p>
     </div>
   </div>
-</div>
 
-<script>
-const FILES = {
-  "wordpress_posts.csv": "All blog & Q&A posts authored by Dr. Eppley",
-  "crossref_works.csv": "Crossref-indexed scholarly works",
-  "openalex_works.csv": "OpenAlex-identified research works",
-  "pubmed_eppley.csv": "Peer-reviewed PubMed research articles",
-  "youtube_all.csv": "YouTube videos mentioning or uploaded by Dr. Eppley",
-  "eppley_master.csv": "Unified master dataset (merged from all sources)"
-};
+  <script>
+    const DESCRIPTIONS = {
+      "wordpress_posts.csv": "All blog & Q&amp;A posts authored by Dr. Eppley",
+      "crossref_works.csv": "Crossref-indexed scholarly works",
+      "openalex_works.csv": "OpenAlex-identified research works",
+      "pubmed_eppley.csv": "Peer-reviewed PubMed research articles",
+      "youtube_all.csv": "YouTube videos mentioning or uploaded by Dr. Eppley",
+      "youtube_metadata.csv": "YouTube metadata (channels &amp; uploads)",
+      "eppley_master.csv": "Unified master dataset (merged from all sources)"
+    };
 
-function badge(status) {
-  const cls = status || 'skipped';
-  return '<span class="badge ' + cls + '">' + (status || 'skipped') + '</span>';
-}
+    const KNOWN_ORDER = [
+      "wordpress_posts.csv",
+      "crossref_works.csv",
+      "openalex_works.csv",
+      "pubmed_eppley.csv",
+      "youtube_all.csv",
+      "eppley_master.csv"
+    ];
 
-async function loadStatus() {
-  try {
-    const res = await fetch('output/status.json', {cache:'no-store'});
-    const data = await res.json();
-    document.getElementById('last-updated').textContent = data.updated_at || '—';
-    document.getElementById('total-records').textContent = (data.total_records || 0).toLocaleString();
-    const tbody = document.getElementById('table-body');
-    Object.keys(FILES).forEach(name => {
-      const rec = data.files[name] || {rows:0,status:'skipped'};
-      const row = `<tr>
-        <td><b>${name}</b></td>
-        <td>${FILES[name] || ''}</td>
-        <td class="right">${(rec.rows || 0).toLocaleString()}</td>
-        <td>${badge(rec.status)}</td>
-        <td><a href="output/${name}">${name.endsWith('.csv') ? 'CSV' : 'File'}</a></td>
-      </tr>`;
-      tbody.insertAdjacentHTML('beforeend', row);
-    });
-  } catch(e) {
-    console.log('Failed to load status.json', e);
-    document.getElementById('table-body').innerHTML = '<tr><td colspan="5">status.json not found</td></tr>';
-  }
-}
-loadStatus();
-</script>
+    function badge(status) {
+      const s = (status || "").toLowerCase();
+      const cls = s === "ok" ? "ok" : s === "warn" ? "warn" : "skip";
+      const label = s || "skipped";
+      return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    function fmt(n) {
+      return typeof n === "number" ? n.toLocaleString() : "0";
+    }
+
+    function fillTable(fileStats) {
+      // fileStats: map filename -> { rows, status, download }
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = "";
+      const order = Array.from(new Set([...KNOWN_ORDER, ...Object.keys(fileStats)]));
+
+      order.forEach(name => {
+        const fs = fileStats[name] || { rows: 0, status: "skipped" };
+        const rows = fmt(fs.rows);
+        const link = fs.download || `output/${name}`;
+        const desc = DESCRIPTIONS[name] || "";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="file">${name}</td>
+          <td>${desc}</td>
+          <td>${rows}</td>
+          <td>${badge(fs.status)}</td>
+          <td><a href="${link}" download>CSV</a></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function deriveTotal(filesMap) {
+      // Prefer master.csv rows if available; else sum
+      if (filesMap["eppley_master.csv"] && typeof filesMap["eppley_master.csv"].rows === "number") {
+        return filesMap["eppley_master.csv"].rows;
+      }
+      return Object.values(filesMap).reduce((acc, v) => acc + (typeof v.rows === "number" ? v.rows : 0), 0);
+    }
+
+    function normalizeStatus(data) {
+      // Accept both schemas
+      // A) Map schema:
+      //    { updated_at, total_records, files: { "file.csv": {rows,status,download?} } }
+      // B) Array schema:
+      //    { generated_at, files: [ {name, rows, exists, raw_url, download_url, ...} ] }
+      const out = { updatedAt: null, files: {} };
+
+      if (data && typeof data === "object") {
+        if ("files" in data && !Array.isArray(data.files)) {
+          // Map schema
+          out.updatedAt = data.updated_at || null;
+          for (const [name, v] of Object.entries(data.files || {})) {
+            out.files[name] = {
+              rows: typeof v.rows === "number" ? v.rows : 0,
+              status: v.status || (v.rows > 0 ? "ok" : "warn"),
+              download: v.download || `output/${name}`
+            };
+          }
+        } else if (Array.isArray(data.files)) {
+          // Array schema
+          out.updatedAt = data.updated_at || data.generated_at || null;
+          data.files.forEach(item => {
+            const name = item.name || item.path?.split("/").pop();
+            if (!name) return;
+            const rows = typeof item.rows === "number" ? item.rows : (item.size_bytes > 0 ? item.rows || 0 : 0);
+            out.files[name] = {
+              rows,
+              status: (rows > 0 ? "ok" : (item.exists === false ? "skipped" : "warn")),
+              download: item.download_url || item.raw_url || `output/${name}`
+            };
+          });
+        }
+      }
+      return out;
+    }
+
+    async function init() {
+      let statusData = null;
+      try {
+        const res = await fetch("output/status.json", { cache: "no-store" });
+        if (res.ok) {
+          statusData = await res.json();
+        } else {
+          console.warn("status.json fetch failed:", res.status);
+        }
+      } catch (e) {
+        console.warn("status.json error:", e);
+      }
+
+      const norm = normalizeStatus(statusData || {});
+      const filesMap = norm.files || {};
+      fillTable(filesMap);
+
+      const updatedEl = document.getElementById("last-updated");
+      const totalEl = document.getElementById("total-records");
+      const footNote = document.getElementById("foot-note");
+
+      const total = deriveTotal(filesMap);
+      totalEl.textContent = `Total records: ${fmt(total)}`;
+      updatedEl.textContent = `Last updated: ${norm.updatedAt || "—"}`;
+
+      // Small helper: if everything is zero but master.csv is huge on disk,
+      // prompt user that status might be stale.
+      const nonZero = Object.values(filesMap).some(v => (v.rows || 0) > 0);
+      if (!nonZero) {
+        footNote.textContent = " (note: status shows zero rows; if CSVs have data, status.json may be stale)";
+      }
+    }
+
+    init();
+  </script>
 </body>
 </html>
