@@ -1,68 +1,35 @@
-      - name: Generate output/status.json (auto-discover CSVs)
+name: Build Status JSON (site)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Twice daily (adjust as you like)
+    - cron: "20 7 * * *"
+    - cron: "50 19 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate status.json
         run: |
-          python - <<'PY'
-          import os, csv, json, glob
-          from datetime import datetime, timezone
+          python tools/make_status_json.py
 
-          def raw_url(path):
-              return f"https://raw.githubusercontent.com/${{ github.repository }}/main/{path}"
-          def blob_url(path):
-              return f"https://github.com/${{ github.repository }}/blob/main/{path}"
-
-          status_path = "output/status.json"
-          prev = {}
-          if os.path.exists(status_path):
-              try:
-                  with open(status_path,"r",encoding="utf-8") as f: prev = json.load(f)
-              except Exception: prev = {}
-          prev_map = { (r.get("name") or r.get("path")): r for r in prev.get("files", []) } if isinstance(prev, dict) else {}
-
-          files = sorted(glob.glob("output/*.csv"))
-          label_map = {
-              "wordpress_posts.csv":"All blog+Q&A posts",
-              "pubmed_eppley.csv":"Publications (PubMed)",
-              # Use youtube_all.csv instead of youtube_metadata.csv to reflect the new collector output
-              "youtube_all.csv":"YouTube metadata",
-              "crossref_works.csv":"Publications (Crossref)",
-              "openalex_works.csv":"Publications & metrics (OpenAlex)",
-              "clinical_trials.csv":"ClinicalTrials.gov studies",
-              "orcid_profiles.csv":"ORCID profiles",
-              "orcid_works.csv":"ORCID public works",
-              "semanticscholar_works.csv":"Publications (Semantic Scholar)",
-              "publications_all.csv":"Merged publications (deduped)"
-          }
-
-          rows_out = []
-          updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-          for path in files:
-              name = os.path.basename(path)
-              entry = {
-                  "name": name, "label": label_map.get(name, "Data"),
-                  "path": path, "exists": os.path.exists(path),
-                  "updated_at": updated_at, "size_bytes": 0, "size_mb": 0.0,
-                  "rows": 0, "new_rows_since_last_run": 0,
-                  "raw_url": raw_url(path), "webpage_url": blob_url(path), "download_url": raw_url(path)
-              }
-              if entry["exists"]:
-                  entry["size_bytes"] = os.path.getsize(path)
-                  entry["size_mb"] = round(entry["size_bytes"]/(1024*1024),3)
-                  try:
-                      with open(path,"r",encoding="utf-8",errors="ignore") as f:
-                          reader = csv.reader(f); rows = list(reader)
-                          if rows: rows = rows[1:]  # skip header
-                          entry["rows"] = len(rows)
-                  except Exception:
-                      pass
-                  prior = prev_map.get(name) or prev_map.get(path) or {}
-                  try:
-                      entry["new_rows_since_last_run"] = max(0, entry["rows"] - int(prior.get("rows", 0)))
-                  except Exception:
-                      entry["new_rows_since_last_run"] = 0
-
-              rows_out.append(entry)
-
-          out = { "repo": "${{ github.repository }}", "generated_at": updated_at, "files": rows_out }
-          os.makedirs("output", exist_ok=True)
-          with open(status_path,"w",encoding="utf-8") as f: json.dump(out, f, ensure_ascii=False, indent=2)
-          print(json.dumps(out, indent=2))
-          PY
+      - name: Commit status.json (if changed)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/status.json
+          git diff --quiet && echo "No changes" || git commit -m "chore: update output/status.json"
+          git push
