@@ -1,10 +1,17 @@
 name: Enrich Corpus (Fulltext + Transcripts + Abstracts)
 
 on:
-  workflow_dispatch: {}   # manual only; will not run automatically
+  workflow_dispatch: {}
+  schedule:
+    # Nightly at 08:30 UTC (~1:30 AM Phoenix, no DST). Change as needed.
+    - cron: "30 8 * * *"
 
 permissions:
   contents: write
+
+concurrency:
+  group: corpus-enrichment
+  cancel-in-progress: false
 
 jobs:
   enrich:
@@ -45,5 +52,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add output/corpus/* || true
-          git commit -m "Corpus: enrich fulltext/transcripts/abstracts + pack" || exit 0
+          git commit -m "Corpus: enrich fulltext/transcripts/abstracts + pack (scheduled)" || exit 0
           git push || true
