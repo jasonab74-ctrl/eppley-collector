@@ -1,79 +1,57 @@
-# tools/scrape_crossref_abstracts.py
 import json, time, re
 from pathlib import Path
-import requests
-import pandas as pd
+import requests, pandas as pd
 
-UA = {"User-Agent": "EppleyCollector/1.0 (+https://jasonab74-ctrl.github.io/eppley-collector/)"}
-ROOT = Path(".")
-OUTDIR = ROOT / "output" / "corpus"
-OUTDIR.mkdir(parents=True, exist_ok=True)
-OUT = OUTDIR / "crossref_abstracts.jsonl"
+UA={"User-Agent":"EppleyCollector/1.0 (+https://jasonab74-ctrl.github.io/eppley-collector/)"}
+ROOT=Path("."); OUTDIR=ROOT/"output"/"corpus"; OUTDIR.mkdir(parents=True,exist_ok=True)
+OUT=OUTDIR/"crossref_abstracts.jsonl"
 
-def normalize_doi(doi: str) -> str:
-    if not isinstance(doi, str): return ""
-    doi = doi.strip()
-    doi = doi.replace("https://doi.org/","").replace("http://doi.org/","").strip()
-    return doi
+def normalize_doi(d):
+    if not isinstance(d,str): return ""
+    return d.replace("https://doi.org/","").replace("http://doi.org/","").strip()
 
-def crossref_abstract(doi: str) -> str | None:
+def crossref_abstract(doi):
     try:
-        r = requests.get(f"https://api.crossref.org/works/{doi}", headers=UA, timeout=25)
-        if r.status_code != 200: return None
-        msg = r.json().get("message", {})
-        abs_html = msg.get("abstract")  # often like "<jats:p>...</jats:p>"
+        r=requests.get(f"https://api.crossref.org/works/{doi}",headers=UA,timeout=25)
+        if r.status_code!=200: return None
+        msg=r.json().get("message",{})
+        abs_html=msg.get("abstract"); 
         if not abs_html: return None
-        txt = re.sub("<[^<]+?>", " ", abs_html)
-        txt = re.sub(r"\s+", " ", txt).strip()
-        return txt or None
-    except Exception:
-        return None
+        return re.sub(r"<[^>]+>"," ",abs_html).strip()
+    except: return None
 
-def openalex_abstract(doi: str) -> str | None:
+def openalex_abstract(doi):
     try:
-        r = requests.get("https://api.openalex.org/works/https://doi.org/" + doi, headers=UA, timeout=25)
-        if r.status_code != 200: return None
-        data = r.json()
-        idx = data.get("abstract_inverted_index")
+        r=requests.get("https://api.openalex.org/works/https://doi.org/"+doi,headers=UA,timeout=25)
+        if r.status_code!=200: return None
+        idx=r.json().get("abstract_inverted_index")
         if not idx: return None
-        # reconstruct text from inverted index
-        words = sorted([(pos, w) for w, poss in idx.items() for pos in poss])
-        seq = [w for _, w in words]
-        return " ".join(seq)
-    except Exception:
-        return None
+        words=[(pos,w) for w,poss in idx.items() for pos in poss]
+        return " ".join(w for _,w in sorted(words))
+    except: return None
 
-def load_candidates():
-    # Prefer the raw crossref CSV if present; fallback to master
-    paths = [ROOT/"output"/"crossref_works.csv", ROOT/"output"/"eppley_master.csv"]
-    dois = set()
-    for p in paths:
-        if not p.exists(): continue
-        df = pd.read_csv(p, low_memory=False)
+def load_dois():
+    dois=set()
+    for p in ["output/crossref_works.csv","output/eppley_master.csv"]:
+        f=Path(p)
+        if not f.exists(): continue
+        df=pd.read_csv(f,low_memory=False)
         for col in ("DOI","doi"):
             if col in df.columns:
-                found = df[col].dropna().astype(str).map(normalize_doi)
-                dois.update([d for d in found if d])
+                dois.update(df[col].dropna().astype(str).map(normalize_doi))
     return list(dois)
 
 def run():
-    dois = load_candidates()
-    wrote = 0
-    seen = set()
-    with OUT.open("w", encoding="utf-8") as f:
-        for i, doi in enumerate(dois):
+    dois=load_dois(); seen=set(); wrote=0
+    with OUT.open("w",encoding="utf-8") as f:
+        for doi in dois:
             if doi in seen: continue
             seen.add(doi)
-            text = crossref_abstract(doi) or openalex_abstract(doi)
+            txt=crossref_abstract(doi) or openalex_abstract(doi)
             time.sleep(0.25)
-            if not text or len(text) < 40:
-                continue
-            rec = {"id": f"doi:{doi}", "source": "crossref/openalex", "title": "", "doi": doi, "url": f"https://doi.org/{doi}", "text": text}
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-            wrote += 1
-            if (i+1) % 200 == 0:
-                print(f"[doi] processed {i+1} / {len(dois)}")
-    print(f"[crossref/openalex] wrote {wrote} abstracts -> {OUT}")
+            if not txt or len(txt)<40: continue
+            f.write(json.dumps({"id":f"doi:{doi}","source":"crossref/openalex","doi":doi,"url":f"https://doi.org/{doi}","text":txt},ensure_ascii=False)+"\n")
+            wrote+=1
+    print(f"[cr] wrote {wrote} abstracts → {OUT}")
 
-if __name__ == "__main__":
-    run()
+if __name__=="__main__": run()
