@@ -1,68 +1,76 @@
-name: Collect & Build / build
+name: Collect & Build
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # manual runs
+  push:
+    branches: [ main ]        # run on pushes to main
   schedule:
-    - cron: "23 7 * * *"  # daily 07:23 UTC
+    - cron: "35 6 * * *"      # nightly at 06:35 UTC
 
-# 🔐 REQUIRED so the job can push updated CSV/JSON to your repo
 permissions:
   contents: write
 
 jobs:
-  run:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # allow pushes
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests pandas beautifulsoup4 lxml
 
-      # ---- YOUR SECRETS/VARs ----
-      # Settings → Secrets and variables → Actions:
-      #   • NCBI_EMAIL      (valid email)
-      #   • YT_API_KEY      (if using YouTube)
-      # Optional:
-      #   • OPENALEX_EMAIL  (else falls back to NCBI_EMAIL)
-      - name: Run collectors
+      # IMPORTANT: Ensure you created an Actions Variable named NCBI_EMAIL,
+      # and an Actions Secret named YT_API_KEY in your repo settings.
+      - name: Export API credentials
         env:
           NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
-          OPENALEX_EMAIL: ${{ vars.OPENALEX_EMAIL }}
         run: |
-          python main.py
-          # sanity print
-          ls -lh output || true
-          head -n 3 output/status.json || true
+          echo "NCBI_EMAIL=${NCBI_EMAIL}" >> $GITHUB_ENV
+          echo "YT_API_KEY=${YT_API_KEY}" >> $GITHUB_ENV
 
-      # 🚀 Commit the updated output/* and any badges/json
-      - name: Commit updated data
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore(data): update output files [skip ci]"
-          file_pattern: |
-            output/*.csv
-            output/*.json
-            output/*.ndjson
-            output/*.parquet
-            output/*.md
+      - name: Run collectors
+        run: python main.py
 
-      # (Optional) Fail if no changes were produced (helps debugging)
-      - name: Check that output changed
+      - name: Write status.json
+        run: python tools/write_status.py
+
+      # ────────────── DIAGNOSTIC STEP #1 ──────────────
+      # Lists what was created and prints the first lines of each CSV.
+      - name: List output files & sizes (diagnostic)
         run: |
-          if git diff --name-only HEAD~1..HEAD | grep -q '^output/'; then
-            echo "Output updated."
+          echo ">>> output directory listing"
+          ls -lah output || true
+          echo ">>> preview first 3 lines of each CSV"
+          for f in output/*.csv; do
+            echo "==== HEAD of $f ===="
+            head -n 3 "$f" || true
+          done
+
+      # ────────────── DIAGNOSTIC STEP #2 ──────────────
+      # Dumps status.json so you can see the same JSON your site reads.
+      - name: Echo status.json (diagnostic)
+        run: |
+          if [ -f output/status.json ]; then
+            echo ">>> output/status.json"
+            cat output/status.json
           else
-            echo "No changes in output/* — check collectors or filters." >&2
+            echo "status.json missing"
           fi
+
+      - name: Commit and push outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/*.csv output/status.json || true
+          git commit -m "Auto: update collected data" || exit 0
+          git push || true
