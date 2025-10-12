@@ -4,190 +4,157 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dr. Barry Eppley Research Dataset</title>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#0f1115; --panel:#171a21; --text:#e7eef7; --muted:#9aa7b2; --ok:#21c55d; --warn:#f59e0b; --skip:#6b7280; --link:#60a5fa; --line:#222630;}
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .wrap{max-width:1024px;margin:48px auto;padding:0 16px}
-    h1{font-weight:800;letter-spacing:.2px;margin:0 0 12px}
-    p.lead{color:var(--muted);margin:0 0 24px}
-    .card{background:var(--panel);border-radius:14px;padding:20px;border:1px solid var(--line)}
-    .meta{color:var(--muted);margin:0 0 12px}
+    :root {
+      --bg:#0f1115; --panel:#171a21; --text:#e7e9ee; --muted:#a7adbb;
+      --ok:#15c57b; --warn:#e6b800; --miss:#ff6b6b; --link:#81aaff;
+      --row:#1c212b; --row2:#1a2029; --badge:#242a36;
+    }
+    html,body{background:var(--bg);color:var(--text);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0;}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 20px;}
+    h1{font-size:2.4rem;margin:0 0 8px}
+    p.lead{color:var(--muted);margin:0 0 22px}
+    .card{background:var(--panel);border-radius:14px;padding:18px 18px 6px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+    .meta{color:var(--muted);margin:0 0 14px}
     table{width:100%;border-collapse:collapse}
-    th,td{padding:14px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
-    th{color:var(--muted);font-weight:600;text-align:left}
-    td a{color:var(--link);text-decoration:none}
-    .badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--muted)}
-    .badge.ok{color:#0f5132;background:rgba(33,197,93,.15);border-color:rgba(33,197,93,.25)}
-    .badge.warn{color:#7a4e00;background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.25)}
-    .badge.skip{color:#374151;background:rgba(107,114,128,.15);border-color:rgba(107,114,128,.25)}
-    .file{font-weight:600}
-    .foot{color:var(--muted);margin-top:10px}
-    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
-    .right{float:right}
+    th,td{padding:14px 10px;text-align:left}
+    thead th{color:var(--muted);font-weight:600;border-bottom:1px solid #2a3040}
+    tbody tr{background:var(--row)}
+    tbody tr:nth-child(even){background:var(--row2)}
+    td.file a, td.dl a{color:var(--link);text-decoration:none}
+    td.file a:hover, td.dl a:hover{text-decoration:underline}
+    .badge{padding:4px 10px;border-radius:999px;background:var(--badge);font-size:.85rem}
+    .ok{background:rgba(21,197,123,.12);color:var(--ok);border:1px solid rgba(21,197,123,.35)}
+    .warn{background:rgba(230,184,0,.12);color:var(--warn);border:1px solid rgba(230,184,0,.35)}
+    .missing,.miss{background:rgba(255,107,107,.12);color:var(--miss);border:1px solid rgba(255,107,107,.35)}
+    .actions{display:flex;gap:10px;margin:14px 0 6px;flex-wrap:wrap}
+    .btn{display:inline-block;background:#24314a;border:1px solid #2e3b57;color:#cfe1ff;padding:8px 12px;border-radius:10px;text-decoration:none}
+    .btn:hover{background:#2a3a59}
+    .hint{color:var(--muted);font-size:.92rem;margin-top:8px}
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Dr. Barry Eppley Research Dataset</h1>
-    <p class="lead">Automatically collected from public sources (WordPress, Crossref, OpenAlex, PubMed, YouTube). Updated nightly.</p>
+    <p class="lead">
+      Automatically collected from public sources (WordPress, Crossref, OpenAlex, PubMed, YouTube). Updated nightly.
+    </p>
 
     <div class="card">
-      <p class="meta"><span id="last-updated">Last updated: —</span> &middot; <span id="total-records">Total records: 0</span></p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:36%">File</th>
-              <th style="width:38%">Description</th>
-              <th style="width:10%">Rows</th>
-              <th style="width:10%">Status</th>
-              <th style="width:6%">Download</th>
-            </tr>
-          </thead>
-          <tbody id="tbody">
-            <!-- rows injected by JS -->
-          </tbody>
-        </table>
+      <p class="meta">
+        <strong>Last updated:</strong> <span id="last-updated">—</span>
+        &nbsp;•&nbsp; <strong>Total records:</strong> <span id="total-records">0</span>
+      </p>
+
+      <div class="actions">
+        <a class="btn" id="btn-master" href="output/eppley_master.csv" target="_blank">Download master.csv</a>
+        <a class="btn" id="btn-status" href="output/status.json" target="_blank">View status.json</a>
       </div>
-      <p class="foot">Unified dataset: <a class="mono" href="output/eppley_master.csv">output/eppley_master.csv</a> &middot; Status: <a class="mono" href="output/status.json">output/status.json</a><span id="foot-note" class="right"></span></p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Description</th>
+            <th>Rows</th>
+            <th>Status</th>
+            <th>Download</th>
+          </tr>
+        </thead>
+        <tbody id="files-body">
+          <!-- populated by JS -->
+        </tbody>
+      </table>
+
+      <p class="hint">If counts look stale, hard-refresh or append <code>?v=TIMESTAMP</code> to the URL to bypass cache.</p>
     </div>
   </div>
 
   <script>
-    const DESCRIPTIONS = {
-      "wordpress_posts.csv": "All blog & Q&amp;A posts authored by Dr. Eppley",
-      "crossref_works.csv": "Crossref-indexed scholarly works",
-      "openalex_works.csv": "OpenAlex-identified research works",
-      "pubmed_eppley.csv": "Peer-reviewed PubMed research articles",
-      "youtube_all.csv": "YouTube videos mentioning or uploaded by Dr. Eppley",
-      "youtube_metadata.csv": "YouTube metadata (channels &amp; uploads)",
-      "eppley_master.csv": "Unified master dataset (merged from all sources)"
-    };
-
-    const KNOWN_ORDER = [
-      "wordpress_posts.csv",
-      "crossref_works.csv",
-      "openalex_works.csv",
-      "pubmed_eppley.csv",
-      "youtube_all.csv",
-      "eppley_master.csv"
-    ];
-
-    function badge(status) {
-      const s = (status || "").toLowerCase();
-      const cls = s === "ok" ? "ok" : s === "warn" ? "warn" : "skip";
-      const label = s || "skipped";
-      return `<span class="badge ${cls}">${label}</span>`;
+    // -------- UI helpers --------
+    function deriveStatus(file) {
+      if (file.status) return file.status;                 // prefer backend-provided status
+      if (file.exists === false) return 'missing';
+      if (typeof file.rows === 'number') return (file.rows > 0 ? 'ok' : 'warn');
+      return 'warn';
+    }
+    function pickYoutube(files){
+      const byName = Object.fromEntries(files.map(f => [f.name, f]));
+      return byName['youtube_all.csv'] ?? byName['youtube_metadata.csv'] ?? null;
+    }
+    function fmtIso(iso){
+      try {
+        const d = new Date(iso);
+        if (isNaN(d)) return '—';
+        return d.toISOString().replace('T',' ').replace('Z',' +00:00');
+      } catch { return '—'; }
     }
 
-    function fmt(n) {
-      return typeof n === "number" ? n.toLocaleString() : "0";
-    }
+    async function loadStatus() {
+      // cache-buster to avoid GH Pages caching
+      const res = await fetch('output/status.json?cb=' + Date.now());
+      if (!res.ok) throw new Error('status.json not found');
+      const data = await res.json();
 
-    function fillTable(fileStats) {
-      // fileStats: map filename -> { rows, status, download }
-      const tbody = document.getElementById("tbody");
-      tbody.innerHTML = "";
-      const order = Array.from(new Set([...KNOWN_ORDER, ...Object.keys(fileStats)]));
+      // header meta
+      const gen = data.generated_at || data.generatedAt || null;
+      document.querySelector('#last-updated').textContent = gen ? fmtIso(gen) : '—';
 
-      order.forEach(name => {
-        const fs = fileStats[name] || { rows: 0, status: "skipped" };
-        const rows = fmt(fs.rows);
-        const link = fs.download || `output/${name}`;
-        const desc = DESCRIPTIONS[name] || "";
-        const tr = document.createElement("tr");
+      // choose youtube alias, and ensure we show the expected set
+      const yt = pickYoutube(data.files || []);
+      let files = (data.files || [])
+        .filter(f => !f.name?.startsWith('youtube_'));
+      if (yt) files.push(yt);
+
+      // If total missing, compute from rows
+      const total = (typeof data.total_records === 'number')
+        ? data.total_records
+        : files.reduce((s,f)=> s + (typeof f.rows === 'number' ? f.rows : 0), 0);
+      document.querySelector('#total-records').textContent = total;
+
+      // Render table
+      const tbody = document.querySelector('#files-body');
+      tbody.innerHTML = '';
+      const order = [
+        'wordpress_posts.csv',
+        'crossref_works.csv',
+        'openalex_works.csv',
+        'pubmed_eppley.csv',
+        'youtube_all.csv',        // preferred name
+        'eppley_master.csv'
+      ];
+      // normalize: include master & any present files even if not in order
+      const byName = Object.fromEntries(files.map(f => [f.name, f]));
+      const finalNames = Array.from(new Set([...order, ...files.map(f=>f.name)]));
+
+      for (const name of finalNames) {
+        const f = byName[name];
+        if (!f) continue;
+        const status = deriveStatus(f);
+        const rows = (typeof f.rows === 'number') ? f.rows : 0;
+        const label = f.label || '';
+        const web = f.webpage_url || f.download_url || `output/${name}`;
+        const dl  = f.download_url || f.raw_url || `output/${name}`;
+        const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="file">${name}</td>
-          <td>${desc}</td>
-          <td>${rows}</td>
-          <td>${badge(fs.status)}</td>
-          <td><a href="${link}" download>CSV</a></td>
+          <td class="file"><a href="${web}" target="_blank" rel="noopener">${name}</a></td>
+          <td class="desc">${label}</td>
+          <td class="rows">${rows}</td>
+          <td class="status"><span class="badge ${status}">${status}</span></td>
+          <td class="dl"><a href="${dl}" target="_blank" rel="noopener">CSV</a></td>
         `;
         tbody.appendChild(tr);
+      }
+    }
+
+    // boot
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStatus().catch(err => {
+        console.error(err);
+        document.querySelector('#files-body').innerHTML =
+          `<tr><td colspan="5">Could not load <code>output/status.json</code>.</td></tr>`;
       });
-    }
-
-    function deriveTotal(filesMap) {
-      // Prefer master.csv rows if available; else sum
-      if (filesMap["eppley_master.csv"] && typeof filesMap["eppley_master.csv"].rows === "number") {
-        return filesMap["eppley_master.csv"].rows;
-      }
-      return Object.values(filesMap).reduce((acc, v) => acc + (typeof v.rows === "number" ? v.rows : 0), 0);
-    }
-
-    function normalizeStatus(data) {
-      // Accept both schemas
-      // A) Map schema:
-      //    { updated_at, total_records, files: { "file.csv": {rows,status,download?} } }
-      // B) Array schema:
-      //    { generated_at, files: [ {name, rows, exists, raw_url, download_url, ...} ] }
-      const out = { updatedAt: null, files: {} };
-
-      if (data && typeof data === "object") {
-        if ("files" in data && !Array.isArray(data.files)) {
-          // Map schema
-          out.updatedAt = data.updated_at || null;
-          for (const [name, v] of Object.entries(data.files || {})) {
-            out.files[name] = {
-              rows: typeof v.rows === "number" ? v.rows : 0,
-              status: v.status || (v.rows > 0 ? "ok" : "warn"),
-              download: v.download || `output/${name}`
-            };
-          }
-        } else if (Array.isArray(data.files)) {
-          // Array schema
-          out.updatedAt = data.updated_at || data.generated_at || null;
-          data.files.forEach(item => {
-            const name = item.name || item.path?.split("/").pop();
-            if (!name) return;
-            const rows = typeof item.rows === "number" ? item.rows : (item.size_bytes > 0 ? item.rows || 0 : 0);
-            out.files[name] = {
-              rows,
-              status: (rows > 0 ? "ok" : (item.exists === false ? "skipped" : "warn")),
-              download: item.download_url || item.raw_url || `output/${name}`
-            };
-          });
-        }
-      }
-      return out;
-    }
-
-    async function init() {
-      let statusData = null;
-      try {
-        const res = await fetch("output/status.json", { cache: "no-store" });
-        if (res.ok) {
-          statusData = await res.json();
-        } else {
-          console.warn("status.json fetch failed:", res.status);
-        }
-      } catch (e) {
-        console.warn("status.json error:", e);
-      }
-
-      const norm = normalizeStatus(statusData || {});
-      const filesMap = norm.files || {};
-      fillTable(filesMap);
-
-      const updatedEl = document.getElementById("last-updated");
-      const totalEl = document.getElementById("total-records");
-      const footNote = document.getElementById("foot-note");
-
-      const total = deriveTotal(filesMap);
-      totalEl.textContent = `Total records: ${fmt(total)}`;
-      updatedEl.textContent = `Last updated: ${norm.updatedAt || "—"}`;
-
-      // Small helper: if everything is zero but master.csv is huge on disk,
-      // prompt user that status might be stale.
-      const nonZero = Object.values(filesMap).some(v => (v.rows || 0) > 0);
-      if (!nonZero) {
-        footNote.textContent = " (note: status shows zero rows; if CSVs have data, status.json may be stale)";
-      }
-    }
-
-    init();
+    });
   </script>
 </body>
 </html>
