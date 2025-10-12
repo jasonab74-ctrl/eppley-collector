@@ -1,0 +1,49 @@
+name: Enrich Corpus (Fulltext + Transcripts + Abstracts)
+
+on:
+  workflow_dispatch: {}   # manual only; will not run automatically
+
+permissions:
+  contents: write
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas beautifulsoup4 lxml youtube-transcript-api
+
+      - name: Scrape WordPress full text (safe)
+        run: |
+          python tools/scrape_wordpress_fulltext.py
+
+      - name: Scrape YouTube transcripts (safe)
+        run: |
+          python tools/scrape_youtube_transcripts.py
+
+      - name: Enrich Crossref/OpenAlex abstracts (safe)
+        run: |
+          python tools/scrape_crossref_abstracts.py
+
+      - name: Build NotebookLM mega-pack (text)
+        run: |
+          python tools/build_corpus_pack.py
+
+      - name: Commit corpus artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/corpus/* || true
+          git commit -m "Corpus: enrich fulltext/transcripts/abstracts + pack" || exit 0
+          git push || true
