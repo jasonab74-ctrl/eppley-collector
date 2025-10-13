@@ -1,0 +1,106 @@
+name: Nightly Snapshot (ZIP + Checksums + Manifest)
+
+on:
+  schedule:
+    # Run nightly at 07:15 UTC (02:15 Phoenix during MST; adjust as desired)
+    - cron: "15 7 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write     # needed to create/update releases
+  actions: read
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare date + filenames
+        id: meta
+        run: |
+          DATE_UTC=$(date -u +"%Y%m%d")
+          echo "date=$DATE_UTC" >> "$GITHUB_OUTPUT"
+          echo "zip=eppley-data-${DATE_UTC}.zip" >> "$GITHUB_OUTPUT"
+          echo "sha=sha256sums-${DATE_UTC}.txt" >> "$GITHUB_OUTPUT"
+          echo "manifest=manifest-${DATE_UTC}.json" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure output exists (don’t fail the run)
+        run: |
+          mkdir -p output
+          # If output is empty, add a tiny note so the zip isn’t zero-byte
+          if [ -z "$(ls -A output)" ]; then
+            echo "No CSVs found at build time." > output/README.txt
+          fi
+
+      - name: Create nightly zip (output/ -> single archive)
+        run: |
+          zip -r "${{ steps.meta.outputs.zip }}" output >/dev/null
+
+      - name: Compute SHA256 checksums (zip + each CSV)
+        run: |
+          mkdir -p release_meta
+          # Hash the zip
+          shasum -a 256 "${{ steps.meta.outputs.zip }}" > release_meta/"${{ steps.meta.outputs.sha }}"
+          # Hash individual CSVs, if any
+          if ls output/*.csv >/dev/null 2>&1; then
+            for f in output/*.csv; do
+              shasum -a 256 "$f" >> release_meta/"${{ steps.meta.outputs.sha }}"
+            done
+          fi
+          echo "== SHA256 sums =="
+          cat release_meta/"${{ steps.meta.outputs.sha }}"
+
+      - name: Build manifest.json (provenance)
+        run: |
+          mkdir -p release_meta
+          COMMIT_SHA=$(git rev-parse HEAD)
+          RUN_ID=${{ github.run_id }}
+          RUN_NUMBER=${{ github.run_number }}
+          DATE_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Try to embed status.json info if present
+          GEN_AT=""
+          FILES="[]"
+          if [ -f output/status.json ]; then
+            GEN_AT=$(jq -r '.generated_at // empty' output/status.json 2>/dev/null || true)
+            FILES=$(jq -c '.files // []' output/status.json 2>/dev/null || echo "[]")
+          fi
+
+          cat > release_meta/"${{ steps.meta.outputs.manifest }}" <<EOF
+          {
+            "repo": "${{ github.repository }}",
+            "commit": "$COMMIT_SHA",
+            "run_id": "$RUN_ID",
+            "run_number": "$RUN_NUMBER",
+            "built_at_utc": "$DATE_ISO",
+            "status_generated_at": "$GEN_AT",
+            "files": $FILES
+          }
+          EOF
+
+          echo "== Manifest =="
+          cat release_meta/"${{ steps.meta.outputs.manifest }}"
+
+      - name: Publish/append to 'nightly' release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly data snapshot
+          prerelease: false
+          draft: false
+          generate_release_notes: false
+          files: |
+            ${{ steps.meta.outputs.zip }}
+            release_meta/${{ steps.meta.outputs.sha }}
+            release_meta/${{ steps.meta.outputs.manifest }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
