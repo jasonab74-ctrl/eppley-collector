@@ -8,9 +8,10 @@ on:
       - "output/**"
       - ".github/workflows/build-status.yml"
   schedule:
-    # Daily at 08:45 UTC (~1:45 AM Phoenix). Adjust if you like.
+    # Daily at 08:45 UTC (~1:45 AM Phoenix)
     - cron: "45 8 * * *"
   workflow_run:
+    # Auto-run after enrichment finishes successfully
     workflows: ["Enrich Corpus (WP deep + YT transcripts + CR/OpenAlex + PubMed + Pack)"]
     types: [completed]
 
@@ -23,8 +24,10 @@ concurrency:
 
 jobs:
   status:
+    # If triggered by workflow_run, only proceed on success
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,6 +36,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install lightweight deps (jq not required)
+        run: |
+          python -m pip install --upgrade pip
 
       - name: Generate output/status.json
         env:
@@ -50,7 +57,6 @@ jobs:
           OUT.mkdir(parents=True, exist_ok=True)
           status_path = OUT / "status.json"
 
-          # Files you want tracked on the site (add/remove as needed)
           MANIFEST = [
             ("wordpress_fulltext.csv",   "WordPress full-text (deep crawl)"),
             ("pubmed_eppley.csv",        "Publications (PubMed)"),
@@ -65,10 +71,9 @@ jobs:
             try:
               with p.open("r", encoding="utf-8", newline="") as f:
                 r = csv.reader(f)
-                # count excluding header
                 n = -1
                 for _ in r: n += 1
-                return max(n, 0)
+                return max(n, 0)    # exclude header
             except Exception:
               return 0
 
@@ -79,10 +84,12 @@ jobs:
             exists = p.exists()
             size = p.stat().st_size if exists else 0
             rows = count_rows(p) if exists else 0
-            updated = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).isoformat() if exists else None
+            updated = (datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).isoformat()
+                       if exists else None)
             raw = f"https://raw.githubusercontent.com/{REPO}/main/output/{name}"
             web = f"https://github.com/{REPO}/blob/main/output/{name}"
-            entry = {
+
+            files.append({
               "name": name,
               "label": label,
               "path": f"output/{name}",
@@ -96,9 +103,7 @@ jobs:
               "webpage_url": web,
               "download_url": raw,
               "status": ("ok" if (exists and rows>0) else ("warn" if exists else "missing")),
-            }
-            files.append(entry)
-            # For the headline total, sum everything except master (optional).
+            })
             if name != "eppley_master.csv":
               total += rows
 
@@ -112,14 +117,25 @@ jobs:
           print(f"[status] wrote {status_path} (total_records={total})")
           PY
 
-      - name: Commit status.json (only if changed)
+      - name: Server-render index.html (embed fresh counts & cache-proof links)
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA:        ${{ github.sha }}
+        run: |
+          if [ -f scripts/render_index.py ]; then
+            python scripts/render_index.py
+          else
+            echo "scripts/render_index.py not found; skipping render."
+          fi
+
+      - name: Commit status + index (only if changed)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/status.json || true
+          git add output/status.json index.html || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "chore(site): refresh output/status.json [skip ci]"
+            git commit -m "site: refresh status.json and index.html [skip ci]"
             git push
           fi
