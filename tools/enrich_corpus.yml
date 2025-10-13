@@ -1,0 +1,62 @@
+name: Enrich Corpus (Fulltext + Transcripts + Abstracts + PubMed)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Nightly at 08:30 UTC (~1:30 AM Phoenix)
+    - cron: "30 8 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: corpus-enrichment
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas beautifulsoup4 lxml youtube-transcript-api reportlab fpdf
+
+      # === ROBUST COLLECTORS (NEW) ===
+      - name: Collect WordPress deep fulltext
+        run: python tools/collect_wordpress_deep.py
+
+      - name: Collect YouTube transcripts (robust)
+        env:
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+        run: python tools/collect_youtube_transcripts.py
+
+      # === EXISTING ENRICHERS (OK TO KEEP) ===
+      - name: Enrich Crossref/OpenAlex abstracts
+        run: python tools/scrape_crossref_abstracts.py
+
+      - name: Export PubMed abstracts
+        run: python tools/export_pubmed_abstracts.py
+
+      - name: Build NotebookLM mega-pack (TXT)
+        run: python tools/build_corpus_pack.py
+
+      - name: Build NotebookLM mega-pack (PDF)
+        run: python tools/make_pdf_from_txt.py
+
+      - name: Commit corpus artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/corpus/* output/*.csv || true
+          git commit -m "Corpus: WP deep + YT transcripts + CR/OpenAlex + PubMed + packs" || exit 0
+          git push || true
