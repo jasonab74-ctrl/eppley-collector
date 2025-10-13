@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-YouTube Transcript Collector (robust)
-- Discovers videos via:
-    1) existing output/youtube_metadata.csv (if present)
-    2) fallback: YouTube Data API channel search (if YT_API_KEY provided)
-- Fetches transcripts via youtube-transcript-api (no API key needed) with English preference
+YouTube Transcript Collector
+- Discovers videos via existing metadata and/or YouTube Data API (if YT_API_KEY is set)
+- Fetches captions via youtube-transcript-api (prefers English)
 - Outputs:
-    * output/youtube_transcripts.csv
-    * output/corpus/youtube_transcripts.jsonl
+  * output/youtube_transcripts.csv
+  * output/corpus/youtube_transcripts.jsonl
 """
 
 from pathlib import Path
@@ -69,8 +67,7 @@ def from_youtube_api(channel_id: str, max_pages: int = 5) -> set:
     return vids
 
 def guess_eppley_channels() -> list:
-    # Known official channel (can be extended if you’ve got more)
-    return ["UCwGQ0k1N3uu6fY0yY1wF9yQ"]  # replace/extend if needed
+    return ["UCwGQ0k1N3uu6fY0yY1wF9yQ"]  # update if you have more channels
 
 def fetch_transcript(video_id: str) -> str | None:
     try:
@@ -78,35 +75,29 @@ def fetch_transcript(video_id: str) -> str | None:
         t = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
         return " ".join(seg["text"] for seg in t if seg.get("text"))
     except Exception as e:
-        print(f"[yt] {video_id} transcript not available: {e}")
+        print(f"[yt] {video_id} no transcript: {e}")
         return None
 
 def main():
-    # 1) Collect video IDs from metadata
     vids = from_existing_metadata()
-
-    # 2) Fallback: discover from channel API if no/low coverage
     if len(vids) < 10:
         for ch in guess_eppley_channels():
             vids.update(from_youtube_api(ch))
-
     vids = sorted(vids)
     print(f"[yt] candidate videos: {len(vids)}")
 
-    # 3) Fetch transcripts
     rows = []
     jsl = []
     for i, vid in enumerate(vids, 1):
         url = f"https://www.youtube.com/watch?v={vid}"
         txt = fetch_transcript(vid)
-        time.sleep(0.25)
+        time.sleep(0.2)
         if not txt or len(txt.strip().split()) < 40:
             continue
         rows.append([vid, url, txt])
         jsl.append({"id": f"yt:{vid}", "source": "youtube", "url": url, "text": txt})
         print(f"[yt] ok {i}/{len(vids)} {vid} ({len(txt)} chars)")
 
-    # 4) Write outputs
     with CSV_OUT.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["videoId","url","transcript"])
