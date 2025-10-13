@@ -1,54 +1,50 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dr. Barry Eppley Research Dataset</title>
-  <style>
-    :root {
-      --bg:#0f1115; --panel:#171a21; --text:#e7e9ee; --muted:#a7adbb;
-      --ok:#15c57b; --warn:#e6b800; --miss:#ff6b6b; --link:#81aaff;
-      --row:#1c212b; --row2:#1a2029; --badge:#242a36;
-    }
-    html,body{background:var(--bg);color:var(--text);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0;}
-    .wrap{max-width:1100px;margin:40px auto;padding:0 20px;}
-    h1{font-size:2.4rem;margin:0 0 8px}
-    p.lead{color:var(--muted);margin:0 0 22px}
-    .card{background:var(--panel);border-radius:14px;padding:18px 18px 6px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
-    .meta{color:var(--muted);margin:0 0 14px}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:14px 10px;text-align:left}
-    thead th{color:var(--muted);font-weight:600;border-bottom:1px solid #2a3040}
-    tbody tr{background:var(--row)}
-    tbody tr:nth-child(even){background:var(--row2)}
-    td.file a, td.dl a{color:var(--link);text-decoration:none}
-    td.file a:hover, td.dl a:hover{text-decoration:underline}
-    .badge{padding:4px 10px;border-radius:999px;background:var(--badge);font-size:.85rem}
-    .ok{background:rgba(21,197,123,.12);color:var(--ok);border:1px solid rgba(21,197,123,.35)}
-    .warn{background:rgba(230,184,0,.12);color:var(--warn);border:1px solid rgba(230,184,0,.35)}
-    .missing,.miss{background:rgba(255,107,107,.12);color:var(--miss);border:1px solid rgba(255,107,107,.35)}
-    .actions{display:flex;gap:10px;margin:14px 0 6px;flex-wrap:wrap}
-    .btn{display:inline-block;background:#24314a;border:1px solid #2e3b57;color:#cfe1ff;padding:8px 12px;border-radius:10px;text-decoration:none}
-    .btn:hover{background:#2a3a59}
-    .hint{color:var(--muted);font-size:.92rem;margin-top:8px}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dr. Barry Eppley Research Dataset</title>
+<style>
+  :root {
+    --bg: #0c0f14; --panel:#151a22; --text:#e8eef6; --muted:#a7b0be; --link:#8ab4ff;
+    --ok:#16a34a; --warn:#f59e0b; --skip:#64748b; --chip:#1f2937; --row:#0f141b;
+  }
+  html,body { background:var(--bg); color:var(--text); font:16px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; }
+  .wrap { max-width:1080px; margin:60px auto; padding:0 16px; }
+  h1 { font-size: clamp(28px, 3.6vw, 44px); margin:0 0 10px; }
+  p.sub { color:var(--muted); margin:0 0 26px; }
+  .card { background:var(--panel); border-radius:14px; padding:18px; box-shadow:0 0 0 1px #0b0f15 inset; }
+  .meta { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:0 0 14px; color:var(--muted); }
+  .meta .chip { background:var(--chip); padding:6px 10px; border-radius:999px; font-size:14px; }
+  .actions { display:flex; gap:12px; margin:12px 0 6px; flex-wrap:wrap; }
+  .btn { display:inline-block; background:#22304a; color:#e4edfa; text-decoration:none; padding:10px 14px; border-radius:10px; }
+  a { color:var(--link); text-decoration:none; }
+  table { width:100%; border-collapse:collapse; margin-top:10px; }
+  th, td { text-align:left; padding:12px 10px; border-bottom:1px solid #0e141d; vertical-align:middle; }
+  tr:hover td { background:var(--row); }
+  th { color:#b9c3d3; font-weight:600; }
+  td.file a { font-weight:600; }
+  td.rows { white-space:nowrap; }
+  .status span { padding:4px 10px; border-radius:999px; font-size:12px; text-transform:uppercase; letter-spacing:.02em; }
+  .status .ok { background:#052e1a; color:#7df0a6; }
+  .status .warn { background:#2d1b05; color:#ffc772; }
+  .status .skipped { background:#17212d; color:#aebad0; }
+  footer { color:var(--muted); margin:22px 0 0; font-size:14px; }
+</style>
 </head>
 <body>
   <div class="wrap">
     <h1>Dr. Barry Eppley Research Dataset</h1>
-    <p class="lead">
-      Automatically collected from public sources (WordPress, Crossref, OpenAlex, PubMed, YouTube). Updated nightly.
-    </p>
+    <p class="sub">Automatically collected from public sources (WordPress, Crossref, OpenAlex, PubMed, YouTube). Updated nightly.</p>
 
     <div class="card">
-      <p class="meta">
-        <strong>Last updated:</strong> <span id="last-updated">—</span>
-        &nbsp;•&nbsp; <strong>Total records:</strong> <span id="total-records">0</span>
-      </p>
-
+      <div class="meta">
+        <span class="chip">Last updated: <strong>2025-10-13 15:52:53.6397 +00:00</strong></span>
+        <span class="chip">Total records: <strong>200</strong></span>
+      </div>
       <div class="actions">
-        <a class="btn" id="btn-master" href="output/eppley_master.csv" target="_blank">Download master.csv</a>
-        <a class="btn" id="btn-status" href="output/status.json" target="_blank">View status.json</a>
+        <a class="btn" href="output/eppley_master.csv?sha=13ad0b12">Download master.csv</a>
+        <a class="btn" href="output/status.json?sha=13ad0b12">View status.json</a>
       </div>
 
       <table>
@@ -61,100 +57,61 @@
             <th>Download</th>
           </tr>
         </thead>
-        <tbody id="files-body">
-          <!-- populated by JS -->
+        <tbody>
+          <tr>
+        <td class="file"><a href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/wordpress_fulltext.csv?sha=13ad0b12" rel="noopener">wordpress_fulltext.csv</a></td>
+        <td class="desc">WordPress full-text (deep crawl)</td>
+        <td class="rows">0</td>
+        <td class="status"><span class="warn">warn</span></td>
+        <td class="dl"><a class="csv" href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/wordpress_fulltext.csv?sha=13ad0b12" rel="noopener">CSV</a></td>
+      </tr>
+<tr>
+        <td class="file"><a href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/pubmed_eppley.csv?sha=13ad0b12" rel="noopener">pubmed_eppley.csv</a></td>
+        <td class="desc">Publications (PubMed)</td>
+        <td class="rows">193</td>
+        <td class="status"><span class="ok">ok</span></td>
+        <td class="dl"><a class="csv" href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/pubmed_eppley.csv?sha=13ad0b12" rel="noopener">CSV</a></td>
+      </tr>
+<tr>
+        <td class="file"><a href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/crossref_works.csv?sha=13ad0b12" rel="noopener">crossref_works.csv</a></td>
+        <td class="desc">Crossref-indexed works</td>
+        <td class="rows">0</td>
+        <td class="status"><span class="skipped">skipped</span></td>
+        <td class="dl"><a class="csv" href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/crossref_works.csv?sha=13ad0b12" rel="noopener">CSV</a></td>
+      </tr>
+<tr>
+        <td class="file"><a href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/openalex_works.csv?sha=13ad0b12" rel="noopener">openalex_works.csv</a></td>
+        <td class="desc">OpenAlex-identified works</td>
+        <td class="rows">0</td>
+        <td class="status"><span class="skipped">skipped</span></td>
+        <td class="dl"><a class="csv" href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/openalex_works.csv?sha=13ad0b12" rel="noopener">CSV</a></td>
+      </tr>
+<tr>
+        <td class="file"><a href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/youtube_metadata.csv?sha=13ad0b12" rel="noopener">youtube_metadata.csv</a></td>
+        <td class="desc">YouTube metadata</td>
+        <td class="rows">7</td>
+        <td class="status"><span class="ok">ok</span></td>
+        <td class="dl"><a class="csv" href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/youtube_metadata.csv?sha=13ad0b12" rel="noopener">CSV</a></td>
+      </tr>
+<tr>
+        <td class="file"><a href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/youtube_transcripts.csv?sha=13ad0b12" rel="noopener">youtube_transcripts.csv</a></td>
+        <td class="desc">YouTube transcripts</td>
+        <td class="rows">0</td>
+        <td class="status"><span class="warn">warn</span></td>
+        <td class="dl"><a class="csv" href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/youtube_transcripts.csv?sha=13ad0b12" rel="noopener">CSV</a></td>
+      </tr>
+<tr>
+        <td class="file"><a href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/eppley_master.csv?sha=13ad0b12" rel="noopener">eppley_master.csv</a></td>
+        <td class="desc">Unified master dataset</td>
+        <td class="rows">0</td>
+        <td class="status"><span class="skipped">skipped</span></td>
+        <td class="dl"><a class="csv" href="https://raw.githubusercontent.com/jasonab74-ctrl/eppley-collector/main/output/eppley_master.csv?sha=13ad0b12" rel="noopener">CSV</a></td>
+      </tr>
         </tbody>
       </table>
 
-      <p class="hint">If counts look stale, hard-refresh or append <code>?v=TIMESTAMP</code> to the URL to bypass cache.</p>
+      <footer>If counts ever look stale, you do nothing—the page is rebuilt automatically by the workflow.</footer>
     </div>
   </div>
-
-  <script>
-    // -------- UI helpers --------
-    function deriveStatus(file) {
-      if (file.status) return file.status;                 // prefer backend-provided status
-      if (file.exists === false) return 'missing';
-      if (typeof file.rows === 'number') return (file.rows > 0 ? 'ok' : 'warn');
-      return 'warn';
-    }
-    function pickYoutube(files){
-      const byName = Object.fromEntries(files.map(f => [f.name, f]));
-      return byName['youtube_all.csv'] ?? byName['youtube_metadata.csv'] ?? null;
-    }
-    function fmtIso(iso){
-      try {
-        const d = new Date(iso);
-        if (isNaN(d)) return '—';
-        return d.toISOString().replace('T',' ').replace('Z',' +00:00');
-      } catch { return '—'; }
-    }
-
-    async function loadStatus() {
-      // cache-buster to avoid GH Pages caching
-      const res = await fetch('output/status.json?cb=' + Date.now());
-      if (!res.ok) throw new Error('status.json not found');
-      const data = await res.json();
-
-      // header meta
-      const gen = data.generated_at || data.generatedAt || null;
-      document.querySelector('#last-updated').textContent = gen ? fmtIso(gen) : '—';
-
-      // choose youtube alias, and ensure we show the expected set
-      const yt = pickYoutube(data.files || []);
-      let files = (data.files || [])
-        .filter(f => !f.name?.startsWith('youtube_'));
-      if (yt) files.push(yt);
-
-      // If total missing, compute from rows
-      const total = (typeof data.total_records === 'number')
-        ? data.total_records
-        : files.reduce((s,f)=> s + (typeof f.rows === 'number' ? f.rows : 0), 0);
-      document.querySelector('#total-records').textContent = total;
-
-      // Render table
-      const tbody = document.querySelector('#files-body');
-      tbody.innerHTML = '';
-      const order = [
-        'wordpress_posts.csv',
-        'crossref_works.csv',
-        'openalex_works.csv',
-        'pubmed_eppley.csv',
-        'youtube_all.csv',        // preferred name
-        'eppley_master.csv'
-      ];
-      // normalize: include master & any present files even if not in order
-      const byName = Object.fromEntries(files.map(f => [f.name, f]));
-      const finalNames = Array.from(new Set([...order, ...files.map(f=>f.name)]));
-
-      for (const name of finalNames) {
-        const f = byName[name];
-        if (!f) continue;
-        const status = deriveStatus(f);
-        const rows = (typeof f.rows === 'number') ? f.rows : 0;
-        const label = f.label || '';
-        const web = f.webpage_url || f.download_url || `output/${name}`;
-        const dl  = f.download_url || f.raw_url || `output/${name}`;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="file"><a href="${web}" target="_blank" rel="noopener">${name}</a></td>
-          <td class="desc">${label}</td>
-          <td class="rows">${rows}</td>
-          <td class="status"><span class="badge ${status}">${status}</span></td>
-          <td class="dl"><a href="${dl}" target="_blank" rel="noopener">CSV</a></td>
-        `;
-        tbody.appendChild(tr);
-      }
-    }
-
-    // boot
-    document.addEventListener('DOMContentLoaded', () => {
-      loadStatus().catch(err => {
-        console.error(err);
-        document.querySelector('#files-body').innerHTML =
-          `<tr><td colspan="5">Could not load <code>output/status.json</code>.</td></tr>`;
-      });
-    });
-  </script>
 </body>
 </html>
