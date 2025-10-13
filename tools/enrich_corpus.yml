@@ -1,4 +1,4 @@
-name: Enrich Corpus (Fulltext + Transcripts + Abstracts + PubMed)
+name: Enrich Corpus (WP deep + YT transcripts + CR/OpenAlex + PubMed + Pack)
 
 on:
   workflow_dispatch: {}
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   enrich:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,32 +31,50 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 lxml youtube-transcript-api reportlab fpdf
 
-      # === ROBUST COLLECTORS (NEW) ===
+      # === ROBUST COLLECTORS ===
       - name: Collect WordPress deep fulltext
         run: python tools/collect_wordpress_deep.py
 
-      - name: Collect YouTube transcripts (robust)
+      - name: Collect YouTube transcripts
         env:
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
         run: python tools/collect_youtube_transcripts.py
 
-      # === EXISTING ENRICHERS (OK TO KEEP) ===
+      # === EXISTING ENRICHERS (if present in repo) ===
       - name: Enrich Crossref/OpenAlex abstracts
-        run: python tools/scrape_crossref_abstracts.py
+        run: |
+          if [ -f tools/scrape_crossref_abstracts.py ]; then
+            python tools/scrape_crossref_abstracts.py
+          fi
 
       - name: Export PubMed abstracts
-        run: python tools/export_pubmed_abstracts.py
+        run: |
+          if [ -f tools/export_pubmed_abstracts.py ]; then
+            python tools/export_pubmed_abstracts.py
+          fi
 
+      # === MERGE MASTER ===
+      - name: Merge master CSV
+        run: python tools/merge_master.py
+
+      # === BUILD PACKS (if present) ===
       - name: Build NotebookLM mega-pack (TXT)
-        run: python tools/build_corpus_pack.py
+        run: |
+          if [ -f tools/build_corpus_pack.py ]; then
+            python tools/build_corpus_pack.py
+          fi
 
       - name: Build NotebookLM mega-pack (PDF)
-        run: python tools/make_pdf_from_txt.py
+        run: |
+          if [ -f tools/make_pdf_from_txt.py ]; then
+            python tools/make_pdf_from_txt.py
+          fi
 
-      - name: Commit corpus artifacts
+      # === COMMIT ARTIFACTS ===
+      - name: Commit artifacts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/corpus/* output/*.csv || true
-          git commit -m "Corpus: WP deep + YT transcripts + CR/OpenAlex + PubMed + packs" || exit 0
+          git add output/corpus/* output/*.csv output/status.json || true
+          git commit -m "Corpus: WP deep + YT transcripts + merges + packs" || exit 0
           git push || true
