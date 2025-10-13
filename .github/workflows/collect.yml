@@ -1,11 +1,10 @@
 name: Collect & Build
 
 on:
-  workflow_dispatch:          # manual runs
-  push:
-    branches: [ main ]        # run on pushes to main
+  workflow_dispatch: {}
   schedule:
-    - cron: "35 6 * * *"      # nightly at 06:35 UTC
+    # Run daily at 07:15 UTC (12:15 am Phoenix during MST; 11:15 pm during MDT)
+    - cron: "15 7 * * *"
 
 permissions:
   contents: write
@@ -13,10 +12,12 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,51 +27,39 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pandas beautifulsoup4 lxml
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pandas python-dateutil
 
-      # IMPORTANT: Ensure you created an Actions Variable named NCBI_EMAIL,
-      # and an Actions Secret named YT_API_KEY in your repo settings.
-      - name: Export API credentials
+      # ---- RUN YOUR COLLECTORS (unchanged) ----
+      - name: Run collector pipeline
         env:
-          NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
-          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+          NCBI_EMAIL:   ${{ secrets.NCBI_EMAIL }}
+          YT_API_KEY:   ${{ secrets.YT_API_KEY }}
         run: |
-          echo "NCBI_EMAIL=${NCBI_EMAIL}" >> $GITHUB_ENV
-          echo "YT_API_KEY=${YT_API_KEY}" >> $GITHUB_ENV
+          mkdir -p output
+          python main.py
 
-      - name: Run collectors
-        run: python main.py
-
+      # ---- WRITE/REFRESH status.json for the site ----
       - name: Write status.json
-        run: python tools/write_status.py
-
-      # ────────────── DIAGNOSTIC STEP #1 ──────────────
-      # Lists what was created and prints the first lines of each CSV.
-      - name: List output files & sizes (diagnostic)
         run: |
-          echo ">>> output directory listing"
-          ls -lah output || true
-          echo ">>> preview first 3 lines of each CSV"
-          for f in output/*.csv; do
-            echo "==== HEAD of $f ===="
-            head -n 3 "$f" || true
-          done
+          python scripts/write_status.py
 
-      # ────────────── DIAGNOSTIC STEP #2 ──────────────
-      # Dumps status.json so you can see the same JSON your site reads.
-      - name: Echo status.json (diagnostic)
-        run: |
-          if [ -f output/status.json ]; then
-            echo ">>> output/status.json"
-            cat output/status.json
-          else
-            echo "status.json missing"
-          fi
+      # ---- Commit any new/changed artifacts (CSV + JSON) ----
+      - name: Commit artifacts
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(data): refresh CSVs and status.json"
+          file_pattern: |
+            output/*.csv
+            output/status.json
 
-      - name: Commit and push outputs
+      # (Optional) build Pages if your site requires it; if your repo already auto-builds, this is harmless
+      - name: Touch index to bump pages
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/*.csv output/status.json || true
-          git commit -m "Auto: update collected data" || exit 0
-          git push || true
+          echo "<!-- bump $(date -u +%FT%TZ) -->" >> index.html
+      - name: Commit bump (no-op if unchanged)
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(site): bump pages build"
+          file_pattern: index.html
