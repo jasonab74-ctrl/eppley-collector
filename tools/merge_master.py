@@ -1,124 +1,146 @@
-#!/usr/bin/env python3
 """
-Merge all available source CSVs into output/eppley_master.csv
-- Robust to missing files
-- Normalizes columns: source, title, url, year, journal, text, __file
-- Dedupes (url, title, source)
+Curated Master Merger (ID-aware, Deduping, OpenAlex Attach)
+----------------------------------------------------------
+- Normalizes all known output/*.csv into a single schema
+- Preserves useful identifiers when present (doi, pmid, type)
+- Deduplicates primarily by DOI, then by (normalized title + year + journal)
+- If output/eppley_openalex.csv exists, LEFT-JOINs its columns additively
+
+Final columns:
+  source, __file, title, url, year, journal, text,
+  doi, pmid, type, openalex_id, cited_by_count, concepts, authorships, host_venue, oa_url
 """
 
-from pathlib import Path
-import pandas as pd
-import numpy as np
+from __future__ import annotations
+import csv
 import re
-from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, List
+import pandas as pd
 
-ROOT   = Path(".")
-OUTDIR = ROOT / "output"
-OUT    = OUTDIR / "eppley_master.csv"
-OUTDIR.mkdir(parents=True, exist_ok=True)
+OUT = Path("output/eppley_master.csv")
+OPENALEX = Path("output/eppley_openalex.csv")
+SRC_DIR = Path("output")
 
-def load_csv(path: Path, usecols=None):
-    if not path.exists(): return pd.DataFrame()
+BASE_COLS = ["source", "__file", "title", "url", "year", "journal", "text"]
+ID_COLS   = ["doi", "pmid", "type"]
+OA_COLS   = ["openalex_id", "cited_by_count", "concepts", "authorships", "host_venue", "oa_url"]
+
+def norm_title(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+def norm_doi(s: str) -> str:
+    if not s: return ""
+    s = s.strip()
+    s = re.sub(r"^https?://(dx\.)?doi\.org/", "", s, flags=re.I)
+    return s.lower()
+
+def read_csv(path: Path) -> pd.DataFrame:
     try:
-        return pd.read_csv(path, low_memory=False, usecols=usecols)
+        df = pd.read_csv(path)
+        df["__file"] = path.name
+        return df
     except Exception:
-        return pd.read_csv(path, low_memory=False)
+        return pd.DataFrame()
 
-def pick_first(row, cols):
-    for c in cols:
-        if c in row and pd.notna(row[c]) and str(row[c]).strip():
-            return str(row[c]).strip()
-    return ""
+def map_to_common(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty: return df
 
-def normalize(df, mapping, source_name, file_tag):
+    cols = {c.lower(): c for c in df.columns}
+    get = lambda name: df[cols[name]] if name in cols else None
+
     out = pd.DataFrame()
-    out["source"] = source_name
-    out["__file"] = file_tag
-    out["title"]  = df[mapping.get("title")]  if mapping.get("title")  in df.columns else ""
-    out["url"]    = df[mapping.get("url")]    if mapping.get("url")    in df.columns else ""
-    out["year"]   = df[mapping.get("year")]   if mapping.get("year")   in df.columns else np.nan
-    out["journal"]= df[mapping.get("journal")]if mapping.get("journal")in df.columns else ""
-    # text can come from several
-    text_cols = mapping.get("text_cols", [])
-    out["text"]  = df.apply(lambda r: pick_first(r, text_cols), axis=1)
-    # coerce types
-    out["title"]   = out["title"].astype(str)
-    out["url"]     = out["url"].astype(str)
-    out["journal"] = out["journal"].astype(str)
-    # clean year
-    def norm_year(v):
-        try:
-            s = str(v).strip()
-            if not s or s.lower() == "nan": return np.nan
-            m = re.search(r"\b(19|20)\d{2}\b", s)
-            return int(m.group(0)) if m else np.nan
-        except Exception:
-            return np.nan
-    out["year"] = out["year"].apply(norm_year)
-    # drop empty text rows to keep quality
-    return out[out["text"].astype(str).str.len() > 0]
+    out["source"]  = get("source") if "source" in cols else ""
+    out["title"]   = get("title")  if "title"  in cols else ""
+    out["url"]     = get("url")    if "url"    in cols else ""
+    out["year"]    = get("year")   if "year"   in cols else ""
+    out["journal"] = get("journal") if "journal" in cols else ""
+    # prefer text/fulltext if present; else empty
+    if "text" in cols:
+        out["text"] = get("text")
+    else:
+        out["text"] = ""
+
+    # identifiers if present
+    out["doi"]  = get("doi")  if "doi"  in cols else ""
+    out["pmid"] = get("pmid") if "pmid" in cols else ""
+    out["type"] = get("type") if "type" in cols else ""
+
+    out["__file"] = df["__file"]
+    return out
+
+def attach_openalex(master: pd.DataFrame) -> pd.DataFrame:
+    if not OPENALEX.exists():
+        return master
+    try:
+        oa = pd.read_csv(OPENALEX)
+        # Normalize DOI for join
+        master["_doi_norm"] = master["doi"].map(lambda x: norm_doi(str(x)) if pd.notna(x) else "")
+        oa["_doi_norm"] = oa["doi"].map(lambda x: norm_doi(str(x)) if isinstance(x, str) else "")
+        # 1) join on DOI
+        merged = master.merge(
+            oa[[ "_doi_norm"] + OA_COLS],
+            on="_doi_norm",
+            how="left"
+        )
+        # cleanup
+        merged.drop(columns=["_doi_norm"], inplace=True)
+        return merged
+    except Exception:
+        return master
 
 def main():
-    frames = []
-
-    # PubMed
-    pm = load_csv(OUTDIR / "pubmed_eppley.csv")
-    if not pm.empty:
-        frames.append(normalize(pm, {
-            "title":"title", "url":"url", "year":"year", "journal":"journal",
-            "text_cols":["abstract","Abstract","abstract_text","AbstractText","summary","description"]
-        }, "pubmed", "pubmed_eppley.csv"))
-
-    # WordPress deep
-    wp = load_csv(OUTDIR / "wordpress_fulltext.csv")
-    if not wp.empty:
-        frames.append(normalize(wp, {
-            "title":"title", "url":"url", "year":None, "journal":None,
-            "text_cols":["text","body","content","answer","description"]
-        }, "wordpress", "wordpress_fulltext.csv"))
-
-    # YouTube transcripts
-    yt = load_csv(OUTDIR / "youtube_transcripts.csv")
-    if not yt.empty:
-        frames.append(normalize(yt, {
-            "title":None, "url":"url", "year":None, "journal":None,
-            "text_cols":["transcript","text","description"]
-        }, "youtube", "youtube_transcripts.csv"))
-
-    # Crossref (optional if present)
-    cr = load_csv(OUTDIR / "crossref_works.csv")
-    if not cr.empty:
-        frames.append(normalize(cr, {
-            "title":"title", "url":"url", "year":"year", "journal":"journal",
-            "text_cols":["abstract","summary","description"]
-        }, "crossref", "crossref_works.csv"))
-
-    # OpenAlex (optional)
-    oa = load_csv(OUTDIR / "openalex_works.csv")
-    if not oa.empty:
-        frames.append(normalize(oa, {
-            "title":"title", "url":"url", "year":"year", "journal":"journal",
-            "text_cols":["abstract","summary","description"]
-        }, "openalex", "openalex_works.csv"))
+    frames: List[pd.DataFrame] = []
+    for p in SRC_DIR.glob("*.csv"):
+        if p.name == OUT.name or p.name == OPENALEX.name:
+            continue
+        df = read_csv(p)
+        if df.empty: continue
+        frames.append(map_to_common(df))
 
     if not frames:
-        print("[merge] no sources found; writing empty master")
-        pd.DataFrame(columns=["source","__file","title","url","year","journal","text"]).to_csv(OUT, index=False)
+        OUT.write_text("", encoding="utf-8")
+        print("[merge] no inputs found")
         return
 
     all_df = pd.concat(frames, ignore_index=True)
 
-    # Deduplicate
-    all_df["dedupe_key"] = (
-        all_df["source"].fillna("") + "||" +
-        all_df["title"].fillna("").str.lower() + "||" +
-        all_df["url"].fillna("").str.lower()
-    )
-    all_df = all_df.drop_duplicates(subset=["dedupe_key"]).drop(columns=["dedupe_key"])
+    # Normalize identifiers for dedupe
+    all_df["doi_norm"] = all_df["doi"].map(lambda x: norm_doi(str(x)) if pd.notna(x) else "")
+    all_df["title_norm"] = all_df["title"].map(norm_title)
+    all_df["year_str"] = all_df["year"].astype(str).fillna("")
 
-    # Write
-    all_df.to_csv(OUT, index=False)
-    print(f"[merge] wrote {OUT} rows={len(all_df)}")
+    # Primary dedupe: DOI
+    has_doi = all_df["doi_norm"] != ""
+    df_doi = all_df[has_doi].sort_values(["doi_norm"]).drop_duplicates(subset=["doi_norm"], keep="first")
+
+    # Secondary dedupe: title+year+journal for non-DOI items
+    no_doi = all_df[~has_doi].copy()
+    no_doi["tyj"] = no_doi["title_norm"] + "||" + no_doi["year_str"] + "||" + no_doi["journal"].fillna("").str.lower().str.strip()
+    df_no_doi = no_doi.sort_values(["tyj"]).drop_duplicates(subset=["tyj"], keep="first").drop(columns=["tyj"])
+
+    master = pd.concat([df_doi, df_no_doi], ignore_index=True)
+
+    # Order columns
+    cols = BASE_COLS + ID_COLS
+    for c in cols:
+        if c not in master.columns:
+            master[c] = ""
+    master = master[["source", "__file", "title", "url", "year", "journal", "text", "doi", "pmid", "type"]]
+
+    # Attach OpenAlex (if available)
+    master = attach_openalex(master)
+
+    # Ensure OA columns exist even if no join
+    for c in OA_COLS:
+        if c not in master.columns:
+            master[c] = ""
+
+    # Final write
+    master.to_csv(OUT, index=False)
+    print(f"[merge] wrote {len(master)} rows to {OUT}")
 
 if __name__ == "__main__":
     main()
