@@ -25,22 +25,36 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install pandas python-dateutil requests
+          pip install pandas python-dateutil requests beautifulsoup4 lxml pyyaml
 
-      # === Your existing collectors. We do NOT change them. ===
-      - name: Run collectors (non-fatal if a source is down)
+      # === Run collectors (non-fatal if a source is down) ===
+      - name: Run collectors
         env:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           NCBI_EMAIL:   ${{ secrets.NCBI_EMAIL }}
           YT_API_KEY:   ${{ secrets.YT_API_KEY }}
         run: |
           set -x
-          if [ -f main.py ]; then
-            # run your pipeline; do not fail the workflow if one source errors
-            python main.py || true
-          fi
+          # Your pipeline: WordPress posts, Crossref, OpenAlex, PubMed, YouTube
+          python -m collectors.wordpress_posts || true
+          python -m collectors.crossref_works || true
+          python -m collectors.openalex_works || true
+          python -m collectors.pubmed_eppley || true
+          python -m collectors.youtube_all || true
 
-      # === Status JSON for the site & diagnostic ===
+      # === Build the curated master (normalized + deduped) ===
+      - name: Merge curated master
+        run: |
+          python tools/merge_master.py
+
+      # === Optional corpus enrichment (if you want this here; you also have a nightly job) ===
+      # - name: Scrape WP deep + YT transcripts + PubMed abstracts to JSONL packs
+      #   run: |
+      #     python tools/scrape_wordpress_fulltext.py || true
+      #     python tools/scrape_youtube_transcripts.py || true
+      #     python tools/export_pubmed_abstracts.py    || true
+
+      # === Status JSON for the site ===
       - name: Write status.json
         run: |
           python scripts/write_status.py
@@ -60,7 +74,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A output/*.csv output/status.json index.html || true
           if ! git diff --cached --quiet; then
-            git commit -m "data: update CSVs, status.json, and index.html [skip ci]"
+            git commit -m "data: update CSVs, master, status.json, and index.html [skip ci]"
             git push
           else
             echo "No changes to commit."
