@@ -35,7 +35,7 @@ jobs:
           YT_API_KEY:   ${{ secrets.YT_API_KEY }}
         run: |
           set -x
-          # Your pipeline: WordPress posts, Crossref, OpenAlex, PubMed, YouTube
+          # Your pipeline: WordPress posts, Crossref, OpenAlex (works list), PubMed, YouTube
           python -m collectors.wordpress_posts || true
           python -m collectors.crossref_works || true
           python -m collectors.openalex_works || true
@@ -47,12 +47,15 @@ jobs:
         run: |
           python tools/merge_master.py
 
-      # === Optional corpus enrichment (if you want this here; you also have a nightly job) ===
-      # - name: Scrape WP deep + YT transcripts + PubMed abstracts to JSONL packs
-      #   run: |
-      #     python tools/scrape_wordpress_fulltext.py || true
-      #     python tools/scrape_youtube_transcripts.py || true
-      #     python tools/export_pubmed_abstracts.py    || true
+      # === OpenAlex Deep Linking (additive; safe to fail) ===
+      - name: Enrich with OpenAlex
+        run: |
+          python tools/enrich_openalex.py || true
+
+      # === Re-merge to attach OpenAlex columns (if any) ===
+      - name: Attach enrichments
+        run: |
+          python tools/merge_master.py
 
       # === Status JSON for the site ===
       - name: Write status.json
@@ -74,7 +77,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A output/*.csv output/status.json index.html || true
           if ! git diff --cached --quiet; then
-            git commit -m "data: update CSVs, master, status.json, and index.html [skip ci]"
+            git commit -m "data: update CSVs, OpenAlex enrich, status.json, and index.html [skip ci]"
             git push
           else
             echo "No changes to commit."
