@@ -1,0 +1,48 @@
+name: ORCID + WordPress Collectors
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 8 * * *'  # daily 08:37 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  orcid_wp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 lxml pyyaml
+
+      - name: Run ORCID and WordPress collectors
+        run: |
+          python -m collectors.orcid_works || true
+          python -m collectors.wordpress_posts || true
+
+      - name: Merge master & rebuild site
+        run: |
+          python tools/merge_master.py
+          python scripts/write_status.py
+          python scripts/render_index.py
+
+      - name: Commit artifacts
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A output/*.csv output/status.json index.html || true
+          if ! git diff --cached --quiet; then
+            git commit -m "data: add ORCID + WP updates [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
