@@ -1,10 +1,11 @@
 """
-Curated Master Merger (ID-aware, Deduping, OpenAlex Attach)
-----------------------------------------------------------
-- Normalizes all known output/*.csv into a single schema
-- Preserves useful identifiers when present (doi, pmid, type)
-- Deduplicates primarily by DOI, then by (normalized title + year + journal)
-- If output/eppley_openalex.csv exists, LEFT-JOINs its columns additively
+Curated Master Merger (NaN-safe, ID-aware, OpenAlex attach)
+-----------------------------------------------------------
+- Reads all output/*.csv (except eppley_master.csv and eppley_openalex.csv)
+  as strings to avoid NaN/float issues.
+- Normalizes into a common schema.
+- Dedupes by DOI first, then by (title+year+journal).
+- LEFT-joins OpenAlex enrichment when available.
 
 Final columns:
   source, __file, title, url, year, journal, text,
@@ -12,10 +13,9 @@ Final columns:
 """
 
 from __future__ import annotations
-import csv
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 import pandas as pd
 
 OUT = Path("output/eppley_master.csv")
@@ -26,78 +26,96 @@ BASE_COLS = ["source", "__file", "title", "url", "year", "journal", "text"]
 ID_COLS   = ["doi", "pmid", "type"]
 OA_COLS   = ["openalex_id", "cited_by_count", "concepts", "authorships", "host_venue", "oa_url"]
 
-def norm_title(s: str) -> str:
-    s = (s or "").strip().lower()
-    s = re.sub(r"\s+", " ", s)
-    return s
+def s(x) -> str:
+    # safe string
+    return "" if x is None else str(x)
 
-def norm_doi(s: str) -> str:
-    if not s: return ""
-    s = s.strip()
-    s = re.sub(r"^https?://(dx\.)?doi\.org/", "", s, flags=re.I)
-    return s.lower()
+def norm_title(val: str) -> str:
+    t = s(val).strip().lower()
+    t = re.sub(r"\s+", " ", t)
+    return t
+
+def norm_doi(val: str) -> str:
+    d = s(val).strip()
+    d = re.sub(r"^https?://(dx\.)?doi\.org/", "", d, flags=re.I)
+    return d.lower()
 
 def read_csv(path: Path) -> pd.DataFrame:
+    # Read all columns as strings; keep_default_na=False prevents NaN
     try:
-        df = pd.read_csv(path)
+        df = pd.read_csv(path, dtype=str, keep_default_na=False)
         df["__file"] = path.name
         return df
     except Exception:
         return pd.DataFrame()
 
 def map_to_common(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty: return df
+    if df.empty:
+        return df
+    # force string on all columns to be safe
+    for c in df.columns:
+        df[c] = df[c].astype(str)
 
+    # column lookup in a case-insensitive way
     cols = {c.lower(): c for c in df.columns}
-    get = lambda name: df[cols[name]] if name in cols else None
 
-    out = pd.DataFrame()
-    out["source"]  = get("source") if "source" in cols else ""
-    out["title"]   = get("title")  if "title"  in cols else ""
-    out["url"]     = get("url")    if "url"    in cols else ""
-    out["year"]    = get("year")   if "year"   in cols else ""
-    out["journal"] = get("journal") if "journal" in cols else ""
-    # prefer text/fulltext if present; else empty
-    if "text" in cols:
-        out["text"] = get("text")
-    else:
-        out["text"] = ""
+    def get(name: str, default: str = "") -> pd.Series:
+        if name in cols:
+            return df[cols[name]].astype(str)
+        return pd.Series([default] * len(df), index=df.index, dtype=str)
 
-    # identifiers if present
-    out["doi"]  = get("doi")  if "doi"  in cols else ""
-    out["pmid"] = get("pmid") if "pmid" in cols else ""
-    out["type"] = get("type") if "type" in cols else ""
-
-    out["__file"] = df["__file"]
+    out = pd.DataFrame(index=df.index)
+    out["source"]  = get("source")
+    out["title"]   = get("title")
+    out["url"]     = get("url")
+    out["year"]    = get("year")
+    out["journal"] = get("journal")
+    out["text"]    = get("text")
+    out["doi"]     = get("doi")
+    out["pmid"]    = get("pmid")
+    out["type"]    = get("type")
+    out["__file"]  = df["__file"]
     return out
 
 def attach_openalex(master: pd.DataFrame) -> pd.DataFrame:
     if not OPENALEX.exists():
+        # ensure OA columns exist even when file absent
+        for c in OA_COLS:
+            if c not in master.columns:
+                master[c] = ""
         return master
     try:
-        oa = pd.read_csv(OPENALEX)
-        # Normalize DOI for join
-        master["_doi_norm"] = master["doi"].map(lambda x: norm_doi(str(x)) if pd.notna(x) else "")
-        oa["_doi_norm"] = oa["doi"].map(lambda x: norm_doi(str(x)) if isinstance(x, str) else "")
-        # 1) join on DOI
+        oa = pd.read_csv(OPENALEX, dtype=str, keep_default_na=False)
+        oa["_doi_norm"] = oa.get("doi", "").map(norm_doi) if "doi" in oa.columns else ""
+        # prepare master DOI norm
+        master["_doi_norm"] = master.get("doi", "").map(norm_doi)
+
         merged = master.merge(
-            oa[[ "_doi_norm"] + OA_COLS],
+            oa[["_doi_norm"] + [c for c in OA_COLS if c in oa.columns]],
             on="_doi_norm",
-            how="left"
+            how="left",
+            suffixes=("", "_oa"),
         )
-        # cleanup
         merged.drop(columns=["_doi_norm"], inplace=True)
+        # ensure any missing OA columns exist
+        for c in OA_COLS:
+            if c not in merged.columns:
+                merged[c] = ""
         return merged
     except Exception:
+        for c in OA_COLS:
+            if c not in master.columns:
+                master[c] = ""
         return master
 
 def main():
     frames: List[pd.DataFrame] = []
     for p in SRC_DIR.glob("*.csv"):
-        if p.name == OUT.name or p.name == OPENALEX.name:
+        if p.name in {OUT.name, OPENALEX.name}:
             continue
         df = read_csv(p)
-        if df.empty: continue
+        if df.empty:
+            continue
         frames.append(map_to_common(df))
 
     if not frames:
@@ -107,38 +125,48 @@ def main():
 
     all_df = pd.concat(frames, ignore_index=True)
 
-    # Normalize identifiers for dedupe
-    all_df["doi_norm"] = all_df["doi"].map(lambda x: norm_doi(str(x)) if pd.notna(x) else "")
+    # Normalize strings
+    for c in ["source", "title", "url", "year", "journal", "text", "doi", "pmid", "type"]:
+        if c not in all_df.columns:
+            all_df[c] = ""
+        else:
+            all_df[c] = all_df[c].astype(str)
+
+    # Helpers for dedupe
+    all_df["doi_norm"]   = all_df["doi"].map(norm_doi)
     all_df["title_norm"] = all_df["title"].map(norm_title)
-    all_df["year_str"] = all_df["year"].astype(str).fillna("")
+    all_df["year_str"]   = all_df["year"].astype(str)
 
     # Primary dedupe: DOI
     has_doi = all_df["doi_norm"] != ""
-    df_doi = all_df[has_doi].sort_values(["doi_norm"]).drop_duplicates(subset=["doi_norm"], keep="first")
+    df_doi = (all_df[has_doi]
+              .sort_values(["doi_norm"])
+              .drop_duplicates(subset=["doi_norm"], keep="first"))
 
-    # Secondary dedupe: title+year+journal for non-DOI items
+    # Secondary dedupe: title+year+journal for items without DOI
     no_doi = all_df[~has_doi].copy()
-    no_doi["tyj"] = no_doi["title_norm"] + "||" + no_doi["year_str"] + "||" + no_doi["journal"].fillna("").str.lower().str.strip()
-    df_no_doi = no_doi.sort_values(["tyj"]).drop_duplicates(subset=["tyj"], keep="first").drop(columns=["tyj"])
+    no_doi["tyj"] = (
+        no_doi["title_norm"] + "||" +
+        no_doi["year_str"] + "||" +
+        no_doi["journal"].str.lower().str.strip()
+    )
+    df_no_doi = (no_doi
+                 .sort_values(["tyj"])
+                 .drop_duplicates(subset=["tyj"], keep="first")
+                 .drop(columns=["tyj"]))
 
     master = pd.concat([df_doi, df_no_doi], ignore_index=True)
 
-    # Order columns
-    cols = BASE_COLS + ID_COLS
-    for c in cols:
+    # Order core columns
+    ordered = ["source", "__file", "title", "url", "year", "journal", "text", "doi", "pmid", "type"]
+    for c in ordered:
         if c not in master.columns:
             master[c] = ""
-    master = master[["source", "__file", "title", "url", "year", "journal", "text", "doi", "pmid", "type"]]
+    master = master[ordered]
 
-    # Attach OpenAlex (if available)
+    # Attach OpenAlex enrichment if available
     master = attach_openalex(master)
 
-    # Ensure OA columns exist even if no join
-    for c in OA_COLS:
-        if c not in master.columns:
-            master[c] = ""
-
-    # Final write
     master.to_csv(OUT, index=False)
     print(f"[merge] wrote {len(master)} rows to {OUT}")
 
